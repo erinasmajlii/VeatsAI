@@ -99,7 +99,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
 
         <Section title="Bill of materials">
           <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full text-xs">
+          <table className="bom-table w-full text-xs">
             <thead className="border-b border-slate-300 text-left text-[10px] uppercase tracking-wider text-slate-500">
               <tr><th className="py-1">#</th><th>Component</th><th>Specification</th><th className="text-right">Qty</th><th className="pl-3 text-right">Unit</th><th className="pl-3 text-right">Total</th><th className="pl-3">Availability</th></tr>
             </thead>
