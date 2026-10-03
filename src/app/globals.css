@@ -55,9 +55,61 @@ body {
   @apply border-b border-slate-100 px-3 py-2 align-top;
 }
 
+.print-footer {
+  display: none;
+}
+
+@page {
+  size: A4;
+  margin: 14mm 12mm 18mm;
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 8pt;
+    color: #64748b;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;
+  }
+  .print-footer {
+    display: flex;
+    position: fixed;
+    bottom: -11mm;
+    left: 0;
+    right: 0;
+    justify-content: space-between;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 2mm;
+    font-size: 8pt;
+    color: #64748b;
+  }
+  .quote-doc {
+    font-size: 11px !important;
+  }
+  .quote-doc thead {
+    display: table-header-group;
+  }
+  .quote-doc tr,
+  .quote-doc li,
+  .quote-doc svg {
+    break-inside: avoid;
+  }
+  .quote-doc table {
+    table-layout: auto;
+    max-width: 100%;
+  }
+  .quote-doc td,
+  .quote-doc th {
+    overflow-wrap: anywhere;
+  }
+  .quote-doc h2 {
+    break-after: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   body {
     background: #fff;

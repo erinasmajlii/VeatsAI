@@ -36,7 +36,11 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         <Link href={`/projects/${id}`} className="text-sm text-slate-600 hover:underline">← Back to project</Link>
         <PrintButton />
       </div>
-      <article className="print-full mx-auto max-w-4xl bg-white px-12 py-10 text-[13px] leading-relaxed shadow-sm print:shadow-none">
+      <article className="quote-doc print-full mx-auto max-w-4xl bg-white px-12 py-10 text-[13px] leading-relaxed shadow-sm print:shadow-none">
+        <div className="print-footer">
+          <span>{quoteNumber(p)} · {COMPANY.name}</span>
+          <span>Preliminary, AI-assisted — requires engineer approval</span>
+        </div>
         {!approved && (
           <div className="mb-6 rounded border-2 border-amber-400 bg-amber-50 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-amber-900">
             Draft — not yet approved by engineer
@@ -94,6 +98,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         </Section>
 
         <Section title="Bill of materials">
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-xs">
             <thead className="border-b border-slate-300 text-left text-[10px] uppercase tracking-wider text-slate-500">
               <tr><th className="py-1">#</th><th>Component</th><th>Specification</th><th className="text-right">Qty</th><th className="pl-3 text-right">Unit</th><th className="pl-3 text-right">Total</th><th className="pl-3">Availability</th></tr>
@@ -112,6 +117,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               ))}
             </tbody>
           </table>
+          </div>
         </Section>
 
         <Section title="Price">
@@ -161,7 +167,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-6 break-inside-avoid-page">
+    <section className="mt-6 print:mt-4">
       <h2 className="mb-2 border-b border-slate-200 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
       {children}
     </section>

@@ -63,7 +63,7 @@ function layout(contract: CadContract): { prims: Prim[]; width: number; height: 
   text(cx, 24, "INCOMING SUPPLY", 11, "middle");
   text(cx, 38, supply?.rating ?? "", 10, "middle");
   line(cx, 44, cx, 70);
-  drawBreaker(cx, 70, `Q0 ${main?.rating ?? ""}`, "Main MCCB");
+  drawBreaker(cx, 70, "Q0", main?.rating ?? "", "Main MCCB");
   line(cx, 110, cx, 140);
 
   // Busbar
@@ -83,11 +83,12 @@ function layout(contract: CadContract): { prims: Prim[]; width: number; height: 
     line(x, y, x, y + 22);
     y += 22;
     devices.forEach((d) => {
-      const label = `${d.type === "mpcb" ? "MPCB" : d.type === "breaker" ? "Q" : d.type === "contactor" ? "K" : d.type === "overload" ? "F" : d.type === "vfd" ? "VFD" : "SS"}${i + 1}`;
-      if (d.type === "breaker" || d.type === "mpcb") drawBreaker(x, y, `${label} ${d.rating ?? ""}`, d.type === "mpcb" ? "MPCB" : "MCB");
-      else if (d.type === "contactor") drawContactor(x, y, `${label} ${d.rating ?? ""}`);
-      else if (d.type === "overload") drawOverload(x, y, `${label} ${d.rating ?? ""}`);
-      else drawBox(x, y, label, d.rating ?? "");
+      const tag = `${d.type === "mpcb" ? "Q" : d.type === "breaker" ? "Q" : d.type === "contactor" ? "K" : d.type === "overload" ? "F" : d.type === "vfd" ? "U" : "G"}${i + 1}`;
+      const rating = d.rating ?? "";
+      if (d.type === "breaker" || d.type === "mpcb") drawBreaker(x, y, tag, rating, d.type === "mpcb" ? "MPCB" : "MCB");
+      else if (d.type === "contactor") drawContactor(x, y, tag, rating);
+      else if (d.type === "overload") drawOverload(x, y, tag, rating);
+      else drawBox(x, y, tag, rating, d.type === "vfd" ? "VFD" : "Soft starter");
       y += 40;
       line(x, y, x, y + 22);
       y += 22;
@@ -114,33 +115,35 @@ function layout(contract: CadContract): { prims: Prim[]; width: number; height: 
 
   return { prims: p, width, height: bottom + 62 };
 
-  function drawBreaker(x: number, y: number, label: string, kind: string) {
+  // Device label block: tag (Q1/K1/F1), rating and kind stacked to the right of the symbol, never overlapping.
+  function label(x: number, y: number, tag: string, rating: string, kind: string) {
+    text(x + 22, y + 11, tag, 10);
+    text(x + 22, y + 23, rating.slice(0, 16), 8);
+    text(x + 22, y + 35, kind, 8);
+  }
+  function drawBreaker(x: number, y: number, tag: string, rating: string, kind: string) {
     rect(x - 16, y, 32, 40);
     line(x - 7, y + 13, x + 7, y + 27, "DEVICES");
     line(x + 7, y + 13, x - 7, y + 27, "DEVICES");
-    text(x + 22, y + 17, label, 9);
-    text(x + 22, y + 29, kind, 8);
+    label(x, y, tag, rating, kind);
   }
-  function drawContactor(x: number, y: number, label: string) {
+  function drawContactor(x: number, y: number, tag: string, rating: string) {
     rect(x - 16, y, 32, 40);
     line(x - 10, y + 16, x + 10, y + 16, "DEVICES");
     line(x - 10, y + 24, x + 10, y + 24, "DEVICES");
-    text(x + 22, y + 17, label, 9);
-    text(x + 22, y + 29, "Contactor", 8);
+    label(x, y, tag, rating, "Contactor");
   }
-  function drawOverload(x: number, y: number, label: string) {
+  function drawOverload(x: number, y: number, tag: string, rating: string) {
     rect(x - 16, y, 32, 40);
     line(x - 8, y + 26, x - 4, y + 14, "DEVICES");
     line(x - 4, y + 14, x + 4, y + 26, "DEVICES");
     line(x + 4, y + 26, x + 8, y + 14, "DEVICES");
-    text(x + 22, y + 17, label, 9);
-    text(x + 22, y + 29, "Overload", 8);
+    label(x, y, tag, rating, "Overload");
   }
-  function drawBox(x: number, y: number, label: string, sub: string) {
+  function drawBox(x: number, y: number, tag: string, rating: string, kind: string) {
     rect(x - 16, y, 32, 40);
-    text(x, y + 24, label.replace(/\d+$/, ""), 8, "middle");
-    text(x + 22, y + 17, label, 9);
-    text(x + 22, y + 29, sub, 8);
+    text(x, y + 24, tag.replace(/\d+$/, ""), 8, "middle");
+    label(x, y, tag, rating, kind);
   }
 }
 

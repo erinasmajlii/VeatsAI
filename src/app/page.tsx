@@ -8,6 +8,14 @@ export const dynamic = "force-dynamic";
 
 const FLOW = ["Client request", "AI understanding", "Missing info", "Engineering engine", "Standards rules", "Components & BOM", "Inventory", "Cost", "CAD", "Quote", "Engineer review", "Approval"];
 
+const HOW: [string, string][] = [
+  ["Describe", "Write the client request in plain language."],
+  ["AI understands", "Extracts inputs; missing data is flagged, never guessed."],
+  ["Engineering", "Deterministic calculations referencing standards."],
+  ["BOM & cost", "Components, stock check and price from inventory."],
+  ["Engineer approves", "Results are preliminary until reviewed and approved."],
+];
+
 export default async function Dashboard() {
   const db = repo();
   const [projects, products] = await Promise.all([db.listProjects(), db.listProducts()]);
@@ -44,6 +52,18 @@ export default async function Dashboard() {
             </div>
           ))}
         </div>
+
+        <Card title="How it works">
+          <ol className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5">
+            {HOW.map(([t, d], i) => (
+              <li key={t} className="rounded-lg bg-slate-50 p-3">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">{i + 1}</span>
+                <div className="mt-2 text-sm font-semibold text-slate-900">{t}</div>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">{d}</p>
+              </li>
+            ))}
+          </ol>
+        </Card>
 
         <Card title="VeatsAI workflow">
           <div className="flex flex-wrap items-center gap-1.5 px-5 py-4 text-xs">
