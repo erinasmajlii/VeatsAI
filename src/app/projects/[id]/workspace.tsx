@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { StandardDefinition, StandardRule } from "@/lib/standards";
 import type { Product, Project } from "@/lib/types";
-import { Badge, SafetyBanner, StatusBadge, eur, fmtDate } from "@/components/ui";
+import { Badge, ProvenanceLegend, SafetyBanner, Spinner, StatusBadge, eur, fmtDate } from "@/components/ui";
 import { AnalysisCard, BomCard, CadCard, CostCard, InputsCard, NotesCard, ResultsCard, StandardsCard, WarningsCard } from "./sections";
 
 export type RunAction = (action: Record<string, unknown>) => Promise<boolean>;
@@ -13,6 +13,7 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
   const [project, setProject] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function call(url: string, body: unknown, label: string): Promise<boolean> {
     setBusy(label);
@@ -35,7 +36,14 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
   }
 
   const run: RunAction = (action) => call(`/api/projects/${project.id}/review`, action, String(action.type));
-  const generate = (patch: Record<string, unknown>) => call(`/api/projects/${project.id}/design`, { patch }, "design");
+  const generate = async (patch: Record<string, unknown>) => {
+    const ok = await call(`/api/projects/${project.id}/design`, { patch }, "design");
+    if (ok) setToast("Engineering design generated — review calculations, warnings and BOM below.");
+    return ok;
+  };
+  async function approve() {
+    if (await run({ type: "approve" })) setToast("Project approved by engineer. The quote can now be issued to the client.");
+  }
 
   async function openQuote() {
     if (await call("/api/quotes/generate", { project_id: project.id }, "quote")) {
@@ -69,6 +77,7 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {busy && <span className="mr-1 inline-flex items-center gap-1.5 text-xs text-slate-500"><Spinner className="h-3.5 w-3.5" /> Working…</span>}
             {d && <span className="mr-2 text-right text-xs text-slate-500">Quote total<div className="text-lg font-semibold tabular-nums text-slate-900">{eur(d.cost.total)}</div></span>}
             {d && (
               <button className="btn-ghost" onClick={openQuote} disabled={!!busy}>
@@ -81,8 +90,12 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
         <Stepper project={project} />
       </div>
 
+      <SectionNav hasDesign={!!d} />
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+
       <div className="space-y-6 p-8">
         <SafetyBanner />
+        <ProvenanceLegend />
         {error && (
           <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             <span>{error}</span>
@@ -90,7 +103,7 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
           </div>
         )}
 
-        <div className="grid gap-6 xl:grid-cols-5">
+        <div id="ai" className="grid scroll-mt-16 gap-6 xl:grid-cols-5">
           <div className="xl:col-span-2">
             <AnalysisCard project={project} />
           </div>
@@ -99,7 +112,9 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
           </div>
         </div>
 
-        {!d ? (
+        {!d && busy === "design" ? (
+          <DesignLoading />
+        ) : !d ? (
           <div className="card px-6 py-10 text-center text-sm text-slate-500">
             {project.status === "MISSING_INFORMATION"
               ? "Critical information is missing. Complete the highlighted fields above, then click “Generate Engineering Design”."
@@ -107,14 +122,14 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
           </div>
         ) : (
           <>
-            <ResultsCard project={project} />
-            <WarningsCard project={project} run={run} busy={busy} />
-            <BomCard project={project} products={products} run={run} busy={busy} />
+            <div id="engineering" className="scroll-mt-16"><ResultsCard project={project} /></div>
+            <div id="warnings" className="scroll-mt-16"><WarningsCard project={project} run={run} busy={busy} /></div>
+            <div id="bom" className="scroll-mt-16"><BomCard project={project} products={products} run={run} busy={busy} /></div>
             <div className="grid gap-6 xl:grid-cols-5">
-              <div className="xl:col-span-2">
+              <div id="cost" className="scroll-mt-16 xl:col-span-2">
                 <CostCard key={`${d.cost.total}-${JSON.stringify(project.cost_settings)}`} project={project} run={run} busy={busy} />
               </div>
-              <div className="xl:col-span-3">
+              <div id="cad" className="scroll-mt-16 xl:col-span-3">
                 <CadCard project={project} />
               </div>
             </div>
@@ -122,7 +137,7 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
             <NotesCard project={project} run={run} busy={busy} />
 
             {/* Approval */}
-            <section id="approval" className={`card overflow-hidden ${approved ? "border-emerald-300" : ""}`}>
+            <section id="approval" className={`card scroll-mt-16 overflow-hidden ${approved ? "border-emerald-300" : ""}`}>
               <div className={`px-6 py-5 ${approved ? "bg-emerald-50" : "bg-slate-50"}`}>
                 <h2 className="text-base font-semibold">Engineer approval</h2>
                 {approved ? (
@@ -141,8 +156,8 @@ export function Workspace({ initial, products, standards, rules }: { initial: Pr
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-                <button className="btn-accent px-5" disabled={!!busy || approved || openCritical > 0} onClick={() => run({ type: "approve" })}>
-                  {busy === "approve" ? "Approving…" : approved ? "✓ Project Approved" : "APPROVE PROJECT"}
+                <button className="btn-accent px-5" disabled={!!busy || approved || openCritical > 0} onClick={approve}>
+                  {busy === "approve" ? <><Spinner /> Approving…</> : approved ? "✓ Project Approved" : "APPROVE PROJECT"}
                 </button>
                 <RequestChanges run={run} busy={busy} disabled={project.status === "NEEDS_CHANGES"} />
                 <button className="btn-ghost" onClick={openQuote} disabled={!!busy}>Open Quote</button>
@@ -211,5 +226,86 @@ function Stepper({ project }: { project: Project }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+const SECTIONS: [id: string, label: string, needsDesign: boolean][] = [
+  ["ai", "AI", false],
+  ["engineering", "Engineering", true],
+  ["warnings", "Warnings", true],
+  ["bom", "BOM", true],
+  ["cost", "Cost", true],
+  ["cad", "CAD", true],
+  ["approval", "Approval", true],
+];
+
+function SectionNav({ hasDesign }: { hasDesign: boolean }) {
+  const [active, setActive] = useState("ai");
+  useEffect(() => {
+    const els = SECTIONS.map(([id]) => document.getElementById(id)).filter((e): e is HTMLElement => !!e);
+    const io = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (top) setActive(top.target.id);
+      },
+      { rootMargin: "-56px 0px -60% 0px" },
+    );
+    els.forEach((e) => io.observe(e));
+    return () => io.disconnect();
+  }, [hasDesign]);
+  return (
+    <nav className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/90 px-8 backdrop-blur">
+      <ul className="flex gap-1 overflow-x-auto py-2 text-sm">
+        {SECTIONS.map(([id, label, needsDesign]) => {
+          const disabled = needsDesign && !hasDesign;
+          return (
+            <li key={id}>
+              <a
+                href={disabled ? undefined : `#${id}`}
+                aria-disabled={disabled}
+                className={`block whitespace-nowrap rounded-md px-3 py-1.5 font-medium transition ${
+                  disabled ? "cursor-not-allowed text-slate-300" : active === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {label}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [message, onClose]);
+  return (
+    <div role="status" className="no-print fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-emerald-200 bg-white px-4 py-3 text-sm shadow-lg ring-1 ring-emerald-100">
+      <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500 text-xs font-bold text-white">✓</span>
+      <span className="flex-1 text-slate-700">{message}</span>
+      <button className="text-xs text-slate-400 hover:text-slate-700" onClick={onClose} aria-label="Dismiss">✕</button>
+    </div>
+  );
+}
+
+const PIPELINE = ["Engineering calculations", "Standards rules", "BOM selection", "Inventory check", "Cost calculation", "CAD drawing"];
+
+function DesignLoading() {
+  return (
+    <div className="card px-6 py-8" aria-busy>
+      <div className="flex items-center gap-3 text-sm font-medium text-slate-800">
+        <Spinner className="h-5 w-5 text-emerald-600" /> Running the engineering engine…
+      </div>
+      <ul className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-3">
+        {PIPELINE.map((step, i) => (
+          <li key={step} className="flex animate-pulse items-center gap-2 rounded-md bg-slate-50 px-3 py-2" style={{ animationDelay: `${i * 0.15}s` }}>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {step}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

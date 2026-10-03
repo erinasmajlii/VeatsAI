@@ -100,6 +100,37 @@ export function Card({ title, actions, children, className = "", id }: { title?:
   );
 }
 
+export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`animate-spin ${className}`} fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity={0.25} strokeWidth={3} />
+      <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const LEGEND: [React.ReactNode, string][] = [
+  [<ProvenanceBadge key="ai" p="AI_GENERATED" />, "interpreted from the request by the language model"],
+  [<ProvenanceBadge key="calc" p="ENGINEERING_CALCULATION" />, "deterministic formula, no LLM math"],
+  [<ProvenanceBadge key="std" p="STANDARDS_RULE" />, "selection from a referenced rule"],
+  [<ProvenanceBadge key="assumed" p="ASSUMED_VALUE" />, "default used because data was missing"],
+  [<Badge key="review" t="amber">Requires engineer review</Badge>, "must be verified before approval"],
+  [<Badge key="approved" t="emerald">Approved by engineer</Badge>, "verified and signed off"],
+];
+export function ProvenanceLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[11px] text-slate-500">
+      <span className="font-semibold uppercase tracking-wide text-slate-600">Legend</span>
+      {LEGEND.map(([badge, text], i) => (
+        <span key={i} className="inline-flex items-center gap-1.5">
+          {badge}
+          <span>{text}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function SafetyBanner() {
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-900">
