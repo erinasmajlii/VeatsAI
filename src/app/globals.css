@@ -120,3 +120,65 @@ body {
     max-width: none !important;
   }
 }
+
+.print-footer {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm 18mm;
+  }
+  html,
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .quote-doc {
+    font-size: 11px;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+  .print-footer {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 3px;
+    font-size: 9px;
+    color: #64748b;
+  }
+  .quote-doc section {
+    break-inside: avoid;
+  }
+  .quote-doc section:has(table.bom-table) {
+    break-inside: auto;
+  }
+  .quote-doc thead {
+    display: table-header-group;
+  }
+  .quote-doc tr {
+    break-inside: avoid;
+  }
+  .quote-doc h2 {
+    break-after: avoid;
+  }
+  .quote-doc table {
+    width: 100%;
+    table-layout: auto;
+  }
+  .quote-doc td,
+  .quote-doc th {
+    overflow-wrap: anywhere;
+  }
+  .quote-doc svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
