@@ -74,7 +74,9 @@ src/lib/
   bom/           component selection from catalog attributes + engineer overrides
   inventory/     seed catalog (client dataset + labelled demo items), stock status
   cost/          material + labor + engineering + margin
-  cad/           CAD data contract → local SVG/DXF generator; AutoCAD/MCP adapter stub
+  cad/           CAD data contract → local SVG/DXF generator + AutoCAD Electrical MCP client
+integrations/
+  autocad-mcp/   Python MCP server driving AutoCAD Electrical over COM (see its README)
   projects/      workflow orchestration, review actions, approval, quotes
   db/            Supabase repository, or local JSON fallback
 src/app/api/     REST endpoints (see below)
@@ -101,12 +103,24 @@ src/app/         dashboard, projects, project workspace, quote, inventory, quote
 
 ### What is real and what is mock
 
-- **Real:** structured AI extraction with Groq, Gemini or Claude (when a key is set); Zod validation with retry; deterministic engineering math; the standards rule engine and traceability; catalog-based component selection; inventory checks; the cost engine; SVG and DXF generation; the review/approval workflow; Supabase persistence; the printable quote.
+- **Real:** AutoCAD Electrical drawing via MCP (intelligent IEC symbols with tags, ratings and MFG/CAT, saved as DWG; needs AutoCAD Electrical running on the same PC), structured AI extraction with Groq, Gemini or Claude (when a key is set); Zod validation with retry; deterministic engineering math; the standards rule engine and traceability; catalog-based component selection; inventory checks; the cost engine; SVG and DXF generation; the review/approval workflow; Supabase persistence; the printable quote.
 - **Reference data / simplified:** cable ampacity and correction factors are indicative values; labor and engineering hours are estimates; the IP mapping is a configurable company rule.
-- **Mock / not implemented:** the AutoCAD/MCP integration (stub adapter only), NEC rules (selectable as "coming soon" only), authentication, short-circuit and selectivity calculations, and IEC 61439 design verification.
+- **Mock / not implemented:** NEC rules (selectable as "coming soon" only), authentication, short-circuit and selectivity calculations, and IEC 61439 design verification.
 
 ### Product catalog
 
 `data/products.client.json` is the company inventory dataset, used verbatim. `src/lib/inventory/catalog.ts` adds machine-readable attributes (rating, setting range, cross-section, IP) so the engine can match products. Items marked **Demo data** (pushbuttons, E-stop, pilot light, VFD) are dummy items for device types the dataset does not contain.
 
 With this catalog, the demo design reports the overload relay as **Component unavailable**: the only relay in stock (LRD332) covers 17–25 A, and the motors draw 28.3 A. Adding a 23–32 A relay (e.g. LRD340) or a 25–32 A motor protection switch to the inventory resolves it.
+
+## AutoCAD Electrical (MCP)
+
+On a Windows PC with AutoCAD Electrical running:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File integrations/autocad-mcp/start.ps1   # MCP server on 127.0.0.1:8765
+npm run dev
+```
+
+Open a project → **CAD preview** → **Send to AutoCAD Electrical**. VeatsAI sends the CAD contract to the MCP server. The server inserts intelligent IEC symbols (Q/K/F/M tags, ratings, manufacturer and catalog from the BOM), draws wires, and saves a DWG to `Documents\VeatsAI\drawings`.
+Claude Code can use the same server via `.mcp.json` (`autocad-electrical`). Details: `integrations/autocad-mcp/README.md`.

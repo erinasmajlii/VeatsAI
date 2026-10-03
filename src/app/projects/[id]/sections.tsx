@@ -527,9 +527,50 @@ export function CadCard({ project }: { project: Project }) {
           // SVG is produced by our own local generator from escaped text — not user HTML.
           <div className="overflow-auto rounded-lg border border-slate-200" dangerouslySetInnerHTML={{ __html: d.cad.svg }} />
         )}
-        <p className="mt-2 text-[11px] text-slate-500">Preliminary drawing generated from the CAD data contract. AutoCAD/MCP integration can consume the same JSON.</p>
+        <p className="mt-2 text-[11px] text-slate-500">Preliminary drawing generated from the CAD data contract. The same JSON is sent to AutoCAD Electrical via MCP.</p>
+        <AutocadExport project={project} />
       </div>
     </Card>
+  );
+}
+
+/** Sends the CAD contract to AutoCAD Electrical through the MCP server (integrations/autocad-mcp). */
+function AutocadExport({ project }: { project: Project }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(project.design?.autocad_export ?? null);
+  const [error, setError] = useState<string | null>(null);
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/cad/autocad", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ project_id: project.id }) });
+      const data = await res.json();
+      if (!res.ok) setError(data.error ?? "AutoCAD export failed.");
+      else setResult(data);
+    } catch {
+      setError("AutoCAD export failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs">
+          <span className="font-semibold">AutoCAD Electrical</span>
+          <span className="text-slate-500"> · intelligent IEC symbols (Q/K/F/M tags, ratings, MFG/CAT) via MCP</span>
+        </div>
+        <button className="btn-primary py-1 text-xs" disabled={busy} onClick={send}>
+          {busy ? "Drawing in AutoCAD…" : "Send to AutoCAD Electrical"}
+        </button>
+      </div>
+      {result && (
+        <div className="mt-2 text-[11px] text-emerald-800">
+          ✓ {result.symbols_inserted} symbols drawn ({result.feeders_drawn}/{result.feeders_total} feeders) → <span className="font-mono break-all">{result.dwg_path}</span>
+        </div>
+      )}
+      {error && <div className="mt-2 text-[11px] text-red-700">{error}</div>}
+    </div>
   );
 }
 

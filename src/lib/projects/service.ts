@@ -2,7 +2,8 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { analyzeRequest } from "../ai/analyze";
 import { bomWarnings, finalizeBom, generateBaseBom } from "../bom";
-import { generateCAD } from "../cad";
+import { buildCadContract, generateCAD } from "../cad";
+import { drawInAutocad } from "../cad/autocad-mcp";
 import { COMPANY, DEFAULT_ENGINEER } from "../config";
 import { calculateCost, DEFAULT_COST_SETTINGS, resolveCostSettings } from "../cost";
 import { repo } from "../db";
@@ -297,4 +298,16 @@ export async function generateQuote(id: string): Promise<Quote> {
   await log(p, "QUOTE_GENERATED", p.engineer, `${q.quote_number} (${q.status})`);
   await persist(p);
   return q;
+}
+
+/** Draw the project's schematic in AutoCAD Electrical through the MCP integration and record the DWG. */
+export async function exportToAutocad(id: string) {
+  const p = await getProjectOrThrow(id);
+  if (!p.design) throw new ServiceError("Generate the engineering design before exporting to AutoCAD.");
+  const contract = buildCadContract(p.title, p.design.calculation, p.design.bom);
+  const result = await drawInAutocad(contract);
+  p.design.autocad_export = { ...result, exported_at: now() };
+  await log(p, "AUTOCAD_EXPORTED", "AutoCAD Electrical (MCP)", `${result.dwg_path} — ${result.symbols_inserted} symbols`);
+  await persist(p);
+  return p.design.autocad_export;
 }

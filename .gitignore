@@ -33,3 +33,7 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python (AutoCAD MCP server)
+.venv/
+__pycache__/

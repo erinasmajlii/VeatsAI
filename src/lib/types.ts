@@ -261,6 +261,9 @@ export interface CadComponent {
   power_kw?: number;
   rating?: string;
   group?: number;
+  /** Optional catalog data from the BOM (used for AutoCAD Electrical MFG / CAT attributes). */
+  manufacturer?: string;
+  catalog?: string;
 }
 
 /** CAD data contract — the JSON that a CAD integration (local SVG/DXF, AutoCAD MCP…) consumes. */
@@ -316,6 +319,8 @@ export interface Design {
   cost: CostBreakdown;
   cad: CadOutput | null;
   cad_error?: string;
+  /** Last export to AutoCAD Electrical via MCP (DWG on the AutoCAD machine). */
+  autocad_export?: { dwg_path: string; drawing: string; symbols_inserted: number; feeders_drawn: number; feeders_total: number; note: string; exported_at: string };
   generated_at: string;
 }
 

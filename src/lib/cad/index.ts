@@ -29,6 +29,17 @@ export function buildCadContract(title: string, calc: EngineeringCalculation, bo
     if (has(c.label, "overload")) components.push({ type: "overload", name: `${c.label} overload`, quantity: c.quantity, rating: `${c.overload_range_target_a} A`, group });
     components.push({ type: "motor", name: c.label, quantity: c.quantity, power_kw: c.power_kw, rating: `${c.full_load_current_a} A`, group });
   });
+  // Carry catalog data (manufacturer / SKU) so CAD integrations can fill MFG / CAT attributes.
+  const BOM_KIND: Partial<Record<CadComponent["type"], string>> = { breaker: "protection", mpcb: "protection", contactor: "contactor", overload: "overload", vfd: "vfd", soft_starter: "softstarter" };
+  for (const comp of components) {
+    const label = comp.group === undefined ? null : calc.motor_circuits[comp.group]?.label;
+    const lineId = comp.group === undefined ? (comp.name === "Main MCCB" ? "main_breaker" : null) : BOM_KIND[comp.type] && `${label}.${BOM_KIND[comp.type]}`;
+    const line = lineId ? bom.find((l) => l.id === lineId) : undefined;
+    if (line?.sku) {
+      comp.manufacturer = line.manufacturer ?? undefined;
+      comp.catalog = line.sku;
+    }
+  }
   return { project: title, voltage: calc.inputs_snapshot.voltage.value, standard: calc.inputs_snapshot.standard, components };
 }
 

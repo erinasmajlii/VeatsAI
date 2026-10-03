@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "autocad-electrical": {
+      "command": "integrations/autocad-mcp/.venv/Scripts/python.exe",
+      "args": ["integrations/autocad-mcp/server.py"]
+    }
+  }
+}

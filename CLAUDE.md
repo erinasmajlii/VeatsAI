@@ -19,6 +19,7 @@ Hackathon MVP — keep the main demo flow working above everything else.
 - `src/lib/bom`, `src/lib/inventory`, `src/lib/cost`, `src/lib/cad` — component selection, stock, cost, SVG/DXF
 - `src/lib/projects/service.ts` — workflow orchestration, review actions, approval, quotes
 - `src/lib/db` — Supabase repository or local JSON fallback (`.data/db.json`)
+- `integrations/autocad-mcp` — Python MCP server → AutoCAD Electrical (COM). Start: `integrations/autocad-mcp/start.ps1`
 - `src/app` — pages + API routes; `src/components` — shared UI
 
 ## Rules
