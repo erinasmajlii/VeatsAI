@@ -4,13 +4,21 @@
  * cost, CAD and quote modules. Keep this file free of runtime logic.
  */
 
+import type { ProjectPlan } from "./plan/types";
+
+/**
+ * Lifecycle: Draft → In progress → Pending approval (ENGINEERING_REVIEW) → Approved → Released.
+ * MISSING_INFORMATION, AI_PROCESSING and NEEDS_CHANGES are "In progress" sub-states.
+ */
 export type ProjectStatus =
   | "DRAFT"
+  | "IN_PROGRESS"
   | "MISSING_INFORMATION"
   | "AI_PROCESSING"
   | "ENGINEERING_REVIEW"
   | "NEEDS_CHANGES"
-  | "APPROVED";
+  | "APPROVED"
+  | "RELEASED";
 
 /** Where a value came from. Every engineering result carries one of these. */
 export type Provenance =
@@ -343,7 +351,75 @@ export interface Project {
   history: ReviewEvent[];
   design: Design | null;
   approved_by?: string | null;
+  approved_by_id?: string | null;
   approved_at?: string | null;
+  released_at?: string | null;
+  released_by?: string | null;
+  released_by_id?: string | null;
+  /** Uploaded architectural plan, its analysis and the generated electrical plan. */
+  plan?: ProjectPlan | null;
+}
+
+// ------------------------------------------------------- users / approvals / stock
+
+export type UserRole = "engineer" | "sales" | "admin";
+
+export interface UserRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  password_hash: string;
+  active: boolean;
+  created_at: string;
+  last_login_at?: string | null;
+}
+
+/** The signed-in user as exposed to the UI — never includes the password hash. */
+export type SessionUser = Pick<UserRecord, "id" | "name" | "email" | "role">;
+
+/** One engineer sign-off. A project has at most one active (APPROVED) record. */
+export interface ProjectApproval {
+  id: string;
+  project_id: string;
+  engineer_id: string | null;
+  engineer_name: string;
+  status: "APPROVED" | "REVOKED";
+  approved_at: string;
+  revoked_at?: string | null;
+  revoked_reason?: string | null;
+  total_eur: number | null;
+  /** Created from approvals recorded before engineer accounts existed. */
+  legacy?: boolean;
+}
+
+export interface InventoryMovement {
+  id: string;
+  sku: string;
+  project_id: string;
+  /** Negative = stock taken out. */
+  quantity_change: number;
+  stock_before: number;
+  stock_after: number;
+  reason: "PROJECT_RELEASE";
+  actor_id: string | null;
+  actor_name: string;
+  created_at: string;
+}
+
+/** A catalogue item a project consumes. Lines without a SKU are not stocked and cannot be deducted. */
+export interface MaterialRequirement {
+  sku: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  source: "design" | "plan";
+}
+
+export interface UnstockedMaterial {
+  description: string;
+  quantity: number;
+  unit: string;
 }
 
 export interface Quote {

@@ -10,6 +10,8 @@ if (-not (Test-Path $py)) {
     & $py -m pip install --quiet --upgrade pip
     & $py -m pip install --quiet -r (Join-Path $dir "requirements.txt")
 }
+# Uploaded plans (.data\uploads) may be read by the server for DWG -> DXF conversion.
+if (-not $env:VEATS_UPLOAD_DIR) { $env:VEATS_UPLOAD_DIR = Join-Path (Get-Location) ".data\uploads" }
 $port = if ($env:AUTOCAD_MCP_PORT) { $env:AUTOCAD_MCP_PORT } else { "8765" }
 Write-Host "AutoCAD Electrical MCP server -> http://127.0.0.1:$port/mcp  (Ctrl+C to stop)"
 & $py (Join-Path $dir "server.py") --http --port $port

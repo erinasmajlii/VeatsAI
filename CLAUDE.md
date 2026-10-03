@@ -2,15 +2,14 @@
 
 # VeatsAI — project instructions
 
-AI-assisted engineering platform for electrical panel builders:
-natural language → AI understanding → engineering → standards → BOM → inventory → cost → CAD → quote → engineer approval.
+Electrical engineering platform: plan upload → analysis → electrical plan → engineer review → approval → release (inventory), plus request → engineering → BOM → cost → CAD → quote.
 Hackathon MVP — keep the main demo flow working above everything else.
 
 ## Commands
 - `npm run dev` — start the app (http://localhost:3000)
 - `npm run build` — must pass before every merge
 - `npm run lint` — must pass before every merge
-- `BASE_URL=http://localhost:3000 npm run test:e2e` — end-to-end demo check (needs `npm run dev` running)
+- `npm run test:unit`, and `npm run build && npm run test:e2e` (isolated production server + throw-away data; never run e2e against real data)
 
 ## Architecture (see README.md)
 - `src/lib/ai` — LLM request understanding only (Groq / Gemini / Claude, Zod-validated) + rule-based fallback
@@ -20,13 +19,15 @@ Hackathon MVP — keep the main demo flow working above everything else.
 - `src/lib/projects/service.ts` — workflow orchestration, review actions, approval, quotes
 - `src/lib/db` — Supabase repository or local JSON fallback (`.data/db.json`)
 - `integrations/autocad-mcp` — Python MCP server → AutoCAD Electrical (COM). Start: `integrations/autocad-mcp/start.ps1`
-- `src/app` — pages + API routes; `src/components` — shared UI
+- `src/lib/plan` — AutoCAD plan analysis, electrical layout, CAD writer; `src/lib/auth` — sessions; `src/proxy.ts` — route protection
+- `src/app` — pages + API routes ((app) = signed-in pages); `src/components` — shared UI
 
 ## Rules
-- Engineering safety language: use "AI-assisted", "standards-referenced", "preliminary", "requires engineer approval".
+- Do not show AI branding in the UI ("powered by AI", robot icons, AI badges). Safety language: "standards-referenced", "preliminary", "requires engineer approval".
   Never "compliant", "certified", "guaranteed safe", "ready for installation". Never invent standard clauses or editions.
 - Never hide uncertainty: missing data → warning or "Insufficient data", defaults → "Assumed value".
 - API keys only in `.env.local` (git-ignored), read server-side. Never commit or print secrets.
+- Approval/release must stay atomic (db/index.ts + supabase/migrations/0002). Only engineers approve/release (checked in the database).
 - Do not modify `data/products.client.json` values — it is the company inventory dataset.
 
 ## Two-laptop workflow

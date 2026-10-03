@@ -1,29 +1,25 @@
 import type { Metadata } from "next";
 import { LangProvider } from "@/components/i18n";
-import { TopBar } from "@/components/topbar";
 import { getLang } from "@/lib/i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VeatsAI — AI-assisted electrical engineering",
-  description: "From natural language to engineering, standards, BOM, inventory, cost, CAD, quote and engineer approval.",
+  title: "VEATSAI — Electrical engineering platform",
+  description: "From architectural plan to approved electrical design: upload, analyse, review, approve and release.",
 };
 
-// Applies the saved/system theme before first paint (avoids a light→dark flash).
-const THEME_SCRIPT = `try{var t=localStorage.getItem("veats-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
+// Runs before first paint: applies the saved/system theme (no light→dark flash) and remembers that the intro was already played in this tab.
+const BOOT_SCRIPT = `try{var t=localStorage.getItem("veats-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t==="dark")document.documentElement.classList.add("dark")}catch(e){}try{if(sessionStorage.getItem("veats-intro")==="1")document.documentElement.setAttribute("data-intro","seen")}catch(e){}`;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const lang = await getLang();
   return (
     <html lang={lang} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <LangProvider lang={lang}>
-          <TopBar />
-          <main className="print-full">{children}</main>
-        </LangProvider>
+        <LangProvider lang={lang}>{children}</LangProvider>
       </body>
     </html>
   );

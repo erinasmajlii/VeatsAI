@@ -1,19 +1,21 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { MessageKey } from "@/lib/i18n";
 import type { ProjectStatus, Provenance, ResultStatus, StockStatus, WarningSeverity } from "@/lib/types";
 import { useT } from "./i18n";
 
-// Subtle, theme-aware tones (work on light and dark backgrounds).
+// Theme-aware tones built from the design tokens (light + dark).
 const tone = {
   slate: "bg-muted text-muted-foreground ring-border",
-  blue: "bg-blue-500/10 text-blue-700 ring-blue-500/20 dark:text-blue-300",
-  violet: "bg-violet-500/10 text-violet-700 ring-violet-500/20 dark:text-violet-300",
-  emerald: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300",
-  amber: "bg-amber-500/10 text-amber-800 ring-amber-500/25 dark:text-amber-300",
-  red: "bg-red-500/10 text-red-700 ring-red-500/20 dark:text-red-300",
-  cyan: "bg-cyan-500/10 text-cyan-700 ring-cyan-500/20 dark:text-cyan-300",
-  orange: "bg-orange-500/10 text-orange-700 ring-orange-500/20 dark:text-orange-300",
+  blue: "bg-accent-soft text-accent ring-accent/20",
+  violet: "bg-accent-soft text-accent ring-accent/20",
+  emerald: "bg-success-soft text-success ring-success/20",
+  amber: "bg-warning-soft text-warning ring-warning/25",
+  red: "bg-danger-soft text-danger ring-danger/20",
+  cyan: "bg-accent-soft text-accent ring-accent/20",
+  orange: "bg-warning-soft text-warning ring-warning/25",
+  dark: "bg-primary text-primary-foreground ring-primary",
 } as const;
 export type Tone = keyof typeof tone;
 
@@ -25,13 +27,15 @@ export function Badge({ children, t = "slate", title }: { children: React.ReactN
   );
 }
 
-const STATUS_TONE: Record<ProjectStatus, Tone> = {
+export const STATUS_TONE: Record<ProjectStatus, Tone> = {
   DRAFT: "slate",
+  IN_PROGRESS: "blue",
   MISSING_INFORMATION: "amber",
-  AI_PROCESSING: "violet",
-  ENGINEERING_REVIEW: "blue",
+  AI_PROCESSING: "blue",
+  ENGINEERING_REVIEW: "amber",
   NEEDS_CHANGES: "orange",
   APPROVED: "emerald",
+  RELEASED: "dark",
 };
 export function StatusBadge({ s }: { s: ProjectStatus }) {
   const t = useT();
@@ -39,7 +43,7 @@ export function StatusBadge({ s }: { s: ProjectStatus }) {
 }
 
 const PROV_TONE: Record<Provenance, Tone> = {
-  AI_GENERATED: "violet",
+  AI_GENERATED: "blue",
   ENGINEERING_CALCULATION: "blue",
   STANDARDS_RULE: "cyan",
   ASSUMED_VALUE: "amber",
@@ -72,15 +76,15 @@ export function SeverityBadge({ s }: { s: WarningSeverity }) {
   return <Badge t={SEV_TONE[s]}>{t(`sev.${s}` as MessageKey)}</Badge>;
 }
 
-/** Page header in the design language: small uppercase eyebrow + title. */
+/** Page header: small uppercase eyebrow + title (+ subtitle and actions). */
 export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: string; title: string; subtitle?: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="no-print border-b border-border">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4 px-6 py-8">
-        <div>
-          {eyebrow && <div className="eyebrow mb-2">{eyebrow}</div>}
-          <h1 className="text-2xl font-normal tracking-tight text-foreground">{title}</h1>
-          {subtitle && <div className="mt-1.5 text-sm text-muted-foreground">{subtitle}</div>}
+      <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4 px-5 py-6 sm:px-8">
+        <div className="min-w-0">
+          {eyebrow && <div className="eyebrow mb-1.5">{eyebrow}</div>}
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+          {subtitle && <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
@@ -111,6 +115,49 @@ export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
+/** Inline error / notice box. */
+export function Notice({ kind = "error", children, onClose }: { kind?: "error" | "warning" | "success" | "info"; children: React.ReactNode; onClose?: () => void }) {
+  const t = useT();
+  const cls = {
+    error: "border-danger/30 bg-danger-soft text-danger",
+    warning: "border-warning/30 bg-warning-soft text-warning",
+    success: "border-success/30 bg-success-soft text-success",
+    info: "border-border bg-muted text-foreground",
+  }[kind];
+  return (
+    <div role={kind === "error" ? "alert" : "status"} className={`flex items-start justify-between gap-4 rounded-md border px-4 py-3 text-sm ${cls}`}>
+      <div className="min-w-0 flex-1">{children}</div>
+      {onClose && (
+        <button type="button" className="shrink-0 text-xs font-medium underline" onClick={onClose}>
+          {t("common.dismiss")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Accessible modal dialog: Escape and backdrop close it, focus moves into it. */
+export function Modal({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      prev?.focus?.();
+    };
+  }, [onClose]);
+  return (
+    <div className="no-print fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-black/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className={`card w-full ${wide ? "max-w-2xl" : "max-w-lg"} shadow-xl outline-none`}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function ProvenanceLegend() {
   const t = useT();
   const items: [React.ReactNode, string][] = [
@@ -137,18 +184,8 @@ export function ProvenanceLegend() {
 export function SafetyBanner() {
   const t = useT();
   return (
-    <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-4 py-2.5 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+    <div className="rounded-md border border-warning/25 bg-warning-soft px-4 py-2.5 text-xs leading-relaxed text-warning">
       <strong className="font-medium">{t("safety.title")}</strong> {t("safety.body")}
     </div>
-  );
-}
-
-/** Bolt-in-square logo mark from the design. */
-export function LogoMark({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
-      <rect x="2.5" y="2.5" width="19" height="19" rx="1.5" />
-      <path d="M13 6l-5 7h4l-1 5 5-7h-4l1-5z" fill="currentColor" stroke="none" />
-    </svg>
   );
 }

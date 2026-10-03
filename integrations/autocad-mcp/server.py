@@ -350,6 +350,65 @@ def op_save(path: str | None) -> dict:
     return {"saved": _retry(lambda: doc.FullName)}
 
 
+def _safe_drawing_path(path: str, suffixes: tuple[str, ...]) -> Path:
+    """Only files inside the VeatsAI drawings folder (or the upload folder given by VEATS_UPLOAD_DIR) may be opened."""
+    p = Path(path).resolve()
+    roots = [OUTPUT_DIR.resolve()]
+    if os.environ.get("VEATS_UPLOAD_DIR"):
+        roots.append(Path(os.environ["VEATS_UPLOAD_DIR"]).resolve())
+    if p.suffix.lower() not in suffixes:
+        raise ValueError(f"Only {', '.join(suffixes)} files can be used.")
+    if not any(root == p or root in p.parents for root in roots):
+        raise ValueError("The file is outside the allowed VeatsAI folders.")
+    if not p.exists():
+        raise FileNotFoundError(f"File not found: {p}")
+    return p
+
+
+def op_open(path: str, save_as_dwg: bool) -> dict:
+    """Open a DXF/DWG in the running AutoCAD (so the engineer sees it immediately); optionally keep a DWG copy."""
+    app = _app()
+    p = _safe_drawing_path(path, (".dxf", ".dwg"))
+    _wait_quiet(app)
+    docs = _retry(lambda: app.Documents)
+    # reuse the drawing if it is already open
+    for d in docs:
+        if str(Path(_retry(lambda d=d: d.FullName)).resolve()).lower() == str(p).lower():
+            _retry(lambda d=d: d.Activate())
+            return {"opened": str(p), "drawing": d.Name, "already_open": True}
+    doc = _retry(lambda: docs.Open(str(p)))
+    result = {"opened": str(p), "drawing": _retry(lambda: doc.Name), "already_open": False}
+    _retry(lambda: setattr(app, "Visible", True))
+    try:
+        _retry(lambda: doc.SendCommand("_.ZOOM _E "))
+    except Exception:  # zoom is cosmetic
+        pass
+    if save_as_dwg and p.suffix.lower() == ".dxf":
+        dwg = p.with_suffix(".dwg")
+        _retry(lambda: doc.SaveAs(str(dwg)))
+        result["dwg_path"] = str(dwg)
+    return result
+
+
+def op_convert_to_dxf(path: str) -> dict:
+    """Convert a DWG (or binary DXF) into an ASCII DXF next to it, using AutoCAD — used when a user uploads a .dwg."""
+    app = _app()
+    p = _safe_drawing_path(path, (".dwg", ".dxf"))
+    out = p.with_name(p.stem + ".converted.dxf")
+    _wait_quiet(app)
+    docs = _retry(lambda: app.Documents)
+    already_open = any(str(Path(_retry(lambda d=d: d.FullName)).resolve()).lower() == str(p).lower() for d in docs)
+    doc = _retry(lambda: docs.Open(str(p), True))  # read-only
+    try:
+        _retry(lambda: doc.SaveAs(str(out), 61))  # ac2013_dxf — ASCII DXF
+    finally:
+        if not already_open:
+            _retry(lambda: doc.Close(False))
+    if not out.exists():
+        raise RuntimeError("AutoCAD did not produce the DXF file.")
+    return {"dxf_path": str(out), "source": str(p)}
+
+
 # --------------------------------------------------------------------------- MCP tools
 
 mcp = MCPServer(
@@ -398,6 +457,19 @@ async def list_electrical_symbols(query: str, limit: int = 50) -> dict:
 async def save_active_drawing(path: str | None = None) -> dict:
     """Save the active drawing (optionally Save As a .dwg path)."""
     return await _run(op_save, path)
+
+
+@mcp.tool()
+async def open_drawing(path: str, save_as_dwg: bool = False) -> dict:
+    """Open a DXF/DWG from the VeatsAI drawings folder in AutoCAD and bring it to the front.
+    With save_as_dwg, a DWG copy is saved next to a DXF."""
+    return await _run(op_open, path, save_as_dwg)
+
+
+@mcp.tool()
+async def convert_to_dxf(path: str) -> dict:
+    """Convert an uploaded DWG into an ASCII DXF (written next to it) so VeatsAI can analyse the plan."""
+    return await _run(op_convert_to_dxf, path)
 
 
 if __name__ == "__main__":
