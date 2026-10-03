@@ -26,6 +26,7 @@ npm-debug.log*
 
 # local fallback database (used when Supabase is not configured)
 /.data/
+/.data-e2e/
 
 # vercel
 .vercel
@@ -37,3 +38,4 @@ next-env.d.ts
 # python (AutoCAD MCP server)
 .venv/
 __pycache__/
+/.data-qa/

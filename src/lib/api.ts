@@ -2,24 +2,39 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AIAnalysisError } from "./ai/analyze";
+import { AuthError, requireEngineer, requireUser } from "./auth";
+import { RepoError } from "./db";
+import type { SessionUser } from "./types";
 import { ENVIRONMENTS, INSTALLATION_METHODS, STARTING_METHODS } from "./ai/schema";
 import { InsufficientDataError } from "./engineering/calculate";
-import { ServiceError } from "./projects/service";
+import { mapRepoError, ServiceError } from "./projects/service";
 
 /** Uniform JSON error handling for route handlers — one failing module never crashes the app. */
+export function errorResponse(err: unknown) {
+  if (err instanceof z.ZodError) {
+    return NextResponse.json({ error: "Invalid input", issues: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`) }, { status: 422 });
+  }
+  if (err instanceof AIAnalysisError) return NextResponse.json({ error: err.message, detail: err.detail, fallback_available: true }, { status: 502 });
+  if (err instanceof InsufficientDataError) return NextResponse.json({ error: "Insufficient engineering data.", missing: err.missing }, { status: 422 });
+  if (err instanceof AuthError) return NextResponse.json({ error: err.message, code: err.status === 403 ? "FORBIDDEN" : err.status === 429 ? "RATE_LIMITED" : "UNAUTHENTICATED" }, { status: err.status });
+  if (err instanceof RepoError) err = mapRepoError(err);
+  if (err instanceof ServiceError) return NextResponse.json({ error: err.message, ...(err.code ? { code: err.code } : {}), ...(err.details ? { details: err.details } : {}) }, { status: err.status });
+  // Unexpected failures are logged on the server; the UI only sees a generic message (never raw database/stack text).
+  console.error(err);
+  return NextResponse.json({ error: "Something went wrong on the server. Please try again.", code: "INTERNAL" }, { status: 500 });
+}
+
 export async function handle<T>(fn: () => Promise<T>) {
   try {
     return NextResponse.json(await fn());
   } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", issues: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`) }, { status: 422 });
-    }
-    if (err instanceof AIAnalysisError) return NextResponse.json({ error: err.message, detail: err.detail, fallback_available: true }, { status: 502 });
-    if (err instanceof InsufficientDataError) return NextResponse.json({ error: "Insufficient engineering data.", missing: err.missing }, { status: 422 });
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.status });
-    console.error(err);
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Unexpected error" }, { status: 500 });
+    return errorResponse(err);
   }
+}
+
+/** Same as `handle`, but resolves the signed-in user first (and requires an engineer when asked). */
+export function handleAuth<T>(fn: (user: SessionUser) => Promise<T>, opts: { engineer?: boolean } = {}) {
+  return handle(async () => fn(opts.engineer ? await requireEngineer() : await requireUser()));
 }
 
 const num = (min: number, max: number) => z.coerce.number().min(min).max(max);
@@ -73,6 +88,5 @@ export const ReviewActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ack_warning"), warning_id: z.string(), acknowledged: z.boolean() }),
   z.object({ type: z.literal("add_note"), text: z.string().max(2000) }),
   z.object({ type: z.literal("request_changes"), reason: z.string().max(2000) }),
-  z.object({ type: z.literal("approve") }),
   z.object({ type: z.literal("update_meta"), title: z.string().max(200).optional(), client_name: z.string().max(200).optional() }),
 ]);

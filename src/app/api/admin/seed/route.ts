@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { handle } from "@/lib/api";
-import { repo } from "@/lib/db";
 import { SEED_PRODUCTS } from "@/lib/inventory/catalog";
 import { STANDARDS } from "@/lib/standards";
 
 const q = (v: unknown) => (v === null || v === undefined ? "null" : `'${String(v).replace(/'/g, "''")}'`);
 
-/** GET /api/admin/seed — seed SQL generated from the catalog (used to produce supabase/seed.sql). */
+/**
+ * GET /api/admin/seed — seed SQL generated from the catalog (used to produce supabase/seed.sql).
+ * The old "re-seed" POST was removed with the Settings page: it would have reset stock levels that releases deduct.
+ */
 export function GET() {
   const lines = [
     "-- VeatsAI seed data (generated from data/products.client.json + demo supplement)",
@@ -24,9 +25,4 @@ export function GET() {
     ),
   ];
   return new NextResponse(lines.join("\n") + "\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
-}
-
-/** POST /api/admin/seed — (re)seed products, inventory and standards in the active database. */
-export async function POST() {
-  return handle(() => repo().seed());
 }

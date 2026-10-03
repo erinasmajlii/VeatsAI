@@ -1,126 +1,95 @@
-# VeatsAI
+# VEATSAI
 
-AI-assisted engineering platform for companies that design and build electrical systems.
+Electrical engineering platform: **architectural plan → analysis → electrical plan → engineer review → approval → release (inventory)**, plus the original request-to-quote flow for motor control panels.
 
-**From natural language → engineering → standards → BOM → inventory → cost → CAD → quote → engineer approval.**
-
-A client request such as *"Design a control panel for 3 motors rated at 15 kW each at 400V."* becomes a structured, traceable engineering project and a professional quote. The engineer stays the final authority.
-
-> VeatsAI produces **AI-assisted, standards-referenced, preliminary** engineering. It does not certify compliance, guarantee safety, or produce designs that are ready to install without review. Every result requires engineer approval.
+> Output is **preliminary and standards-referenced**. It does not certify compliance or safety; every result requires engineer approval.
 
 ## Quick start
 
 ```bash
 npm install
-cp .env.example .env.local   # optional: add AI_API_KEY and Supabase credentials
+cp .env.example .env.local   # set ENGINEER_SEED_EMAIL / ENGINEER_SEED_PASSWORD (and optional keys)
 npm run dev                  # http://localhost:3000
 ```
 
-With no environment variables set, the app still runs end to end:
-- request understanding uses the **rule-based parser**, which is labelled in the UI
-- data is stored in a **local JSON database** at `.data/db.json`, seeded automatically
-
-### Demo
-
-1. Open **New Project**, click **Use demo request**, then **Analyse Request**.
-2. The AI analysis shows 3 × 15 kW motors at 400 V. The starting method is flagged as **missing** (required); cable length, environment and other fields are flagged as recommended.
-3. Select **Direct-on-line (DOL)**. Optionally enter a cable length (e.g. 30 m) and an environment (e.g. Indoor, dusty). Click **Generate Engineering Design**.
-4. Review the calculations (28.3 A per motor, 100 A main breaker, 6 mm² cable), the warnings, the BOM with inventory status, the cost, and the CAD single-line diagram (SVG preview + DXF download).
-5. Edit as the engineer: change margin, quantities or PF/η; replace a component; add a note.
-6. Acknowledge the critical warnings, then click **APPROVE PROJECT**.
-7. Click **Generate Quote**. The quote page uses **Download PDF / Print** to save a PDF via the browser.
-
-Automated check, against a running server:
+With no other variables the app runs end to end on a **local JSON database** (`.data/db.json`). The first visit shows the intro animation, then **Continue to Login**. Sign in with the engineer defined by `ENGINEER_SEED_*` (created on first sign-in). More accounts:
 
 ```bash
-npm run dev
-BASE_URL=http://localhost:3000 npm run test:e2e
+node scripts/create-user.mjs --email you@company.com --name "Your Name" --role engineer   # engineer | sales | admin
 ```
+
+### Demo: plan → electrical plan → CAD → approve → release
+1. **Requests** → upload `data/samples/office-floor.dxf` (or your own `.dxf` / `.dwg`).
+2. **Plan** tab: review the detected rooms, doors, windows and scale, then **Generate electrical plan**.
+3. Review the plan on the drawing and the circuit schedule, then **Confirm review** (engineers).
+4. **Generate CAD file** → **Download DXF** or **Open in AutoCAD**.
+5. **Approve project** (engineer) — stores the engineer, project and time. Then **Release project**: the plan's stocked materials are deducted from inventory, once.
+
+The request flow still works: write a request in the **Assistant** (right panel) or in **Requests**, complete the data, generate the design, review, approve, quote.
+
+## Roles and approval
+- Pages and APIs need a signed-in user (signed `httpOnly` cookie; `proxy.ts` is the first gate, route handlers re-check the user **and role in the database**).
+- Only an **engineer** can approve, release or confirm a plan review. Sales/admin accounts can sign in and prepare work.
+- `POST /api/projects/:id/approve` → rows in `project_approvals` (engineer id + name, project, timestamp, status) and on the project. A second approval is rejected (unique index + status check). Editing an approved project revokes the approval (kept in the history).
+- `POST /api/projects/:id/release` (approved projects only) deducts the exact materials from inventory **atomically** and records every change in `inventory_movements`. A repeated release is rejected and never deducts again; insufficient stock fails the whole release with nothing deducted. Items without a catalogue SKU (e.g. luminaires) are listed as "to purchase" and not deducted.
+- Lifecycle: Draft → In progress → Pending approval → Approved → Released (`MISSING_INFORMATION`, `AI_PROCESSING` and `NEEDS_CHANGES` are "In progress" sub-states). Released projects are locked.
+
+## AutoCAD plans
+- Upload `.dxf` (ASCII) or `.dwg`. DWG and binary DXF are converted through AutoCAD by the AutoCAD service (below); without it, upload an ASCII DXF.
+- Analysis (`src/lib/plan`): units (header or inferred, always flagged when assumed), layer roles, walls (exterior/interior, thickness), doors with swing direction, windows, stairs, rooms (raster flood-fill, robust to double-line walls and small gaps) with areas, names and functions, dimension cross-check. Every assumption is shown as a warning.
+- Electrical plan: luminaires, switches at door latch sides, sockets spread along walls, appliance points, data/outdoor points, circuits with labels/protection/cable, distribution board, cable routes that run inside rooms and through door openings, legend, technical data, assumptions, and a bill of materials mapped to the catalogue.
+- CAD file: original drawing layers + `E-*` layers, circuit schedule, legend, title block (ASCII DXF).
+- **Open in AutoCAD**: the server opens the DXF (and keeps a DWG copy) through the AutoCAD service; fallback is the OS default application for `.dxf`. Start the service on the AutoCAD machine:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File integrations/autocad-mcp/start.ps1   # 127.0.0.1:8765 — restart it after updating
+```
+
+Sample plans: `data/samples/*.dxf` (regenerate with `npm run sample-plans`, needs `pip install ezdxf`).
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GROQ_API_KEY` | no | Groq key (free tier), used server-side only. First choice when set. `GROQ_MODEL` defaults to `openai/gpt-oss-120b`. |
-| `GEMINI_API_KEY` | no | Google Gemini key, used server-side only. |
-| `GEMINI_MODEL` | no | Defaults to `gemini-3.8-flash`. |
-| `AI_API_KEY` | no | Claude API key, used server-side only (`ANTHROPIC_API_KEY` also works). `AI_MODEL` defaults to `claude-opus-5-5`. |
-| `AI_PROVIDER` | no | `groq`, `gemini` or `anthropic`, to force one when several keys are set. With no key, the rule-based parser is used. |
-| `SUPABASE_URL` | no | Supabase project URL. |
-| `SUPABASE_SERVICE_ROLE_KEY` | no | Server-side only. When both Supabase variables are set, Supabase replaces the local JSON database. |
-| `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL`, `DEFAULT_ENGINEER` | no | Text shown on quotes. |
+| `AUTH_SECRET` | production | Signs session cookies (≥ 16 chars). In development a random one is kept in `.data/auth-secret`. |
+| `ENGINEER_SEED_EMAIL`, `ENGINEER_SEED_NAME`, `ENGINEER_SEED_PASSWORD` | first run | Engineer account created on first sign-in. |
+| `GROQ_API_KEY` / `GEMINI_API_KEY` / `AI_API_KEY` (+ `*_MODEL`, `AI_PROVIDER`) | no | Request understanding for the written-request flow. Without a key a rule-based parser is used. |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | no | Use Supabase instead of the local JSON database (server-side only). |
+| `AUTOCAD_MCP_URL`, `VEATS_CAD_OUTPUT`, `VEATS_UPLOAD_DIR` | no | AutoCAD service URL; CAD output folder (default `Documents\VeatsAI\drawings`); upload folder (default `.data/uploads`). |
+| `VEATS_DATA_DIR` | no | Folder for local state (default `.data`). Tests use a throw-away folder. |
+| `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL` | no | Text shown on quotes and About. |
 
 `.env.local` is git-ignored. Never commit keys and never prefix secrets with `NEXT_PUBLIC_`.
 
 ## Supabase setup
+1. Create a project; put the URL and **service_role** key in `.env.local`.
+2. Run `supabase/migrations/0001_init.sql`, then `0002_auth_approval_release.sql` (engineer accounts, `project_approvals`, `inventory_movements`, and the transactional `approve_project` / `release_project` functions), then `supabase/seed.sql`.
+3. `node scripts/create-user.mjs …` creates engineers in Supabase when the variables are set.
 
-1. Create a Supabase project. Copy the **Project URL** and the **service_role** key from Project Settings → API into `.env.local`.
-2. Run `supabase/migrations/0001_init.sql` in the SQL editor, or use `supabase db push`.
-3. Run `supabase/seed.sql`. If you skip this, the app seeds `products`, `inventory` and `standards` automatically on first access. **Settings → Re-seed database** also re-seeds.
-
-RLS is enabled on every table, with no anon policies. The app reads and writes only from server code, using the service-role key.
-
-Tables: `users`, `standards`, `products`, `inventory`, `projects`, `project_components`, `engineering_calculations`, `quotes`, `project_reviews`.
+RLS is enabled on every table with no anon policies; the app only accesses data from server code.
 
 ## Architecture
 
-All modules live in one Next.js app (App Router, TypeScript, Tailwind) and are separated by responsibility:
-
 ```
 src/lib/
-  ai/            Claude request understanding → JSON (Zod-validated, retry) + rule-based fallback
-  engineering/   deterministic calculations (no LLM): current, protection, contactor, cable, voltage drop
-  standards/     standards catalog + rule objects (id, standard, inputs, severity, implementation)
-  bom/           component selection from catalog attributes + engineer overrides
-  inventory/     seed catalog (client dataset + labelled demo items), stock status
-  cost/          material + labor + engineering + margin
-  cad/           CAD data contract → local SVG/DXF generator + AutoCAD Electrical MCP client
-integrations/
-  autocad-mcp/   Python MCP server driving AutoCAD Electrical over COM (see its README)
-  projects/      workflow orchestration, review actions, approval, quotes
-  db/            Supabase repository, or local JSON fallback
-src/app/api/     REST endpoints (see below)
-src/app/         dashboard, projects, project workspace, quote, inventory, quotes, standards, settings
+  plan/          DXF parser, plan analysis, electrical layout, CAD (DXF) writer
+  auth/          scrypt passwords, signed session tokens, sign-in
+  db/            Supabase repository or local JSON; atomic approve/release
+  projects/      workflow (service.ts), plan workflow (plan-service.ts), materials, lifecycle
+  ai/, engineering/, standards/, bom/, inventory/, cost/, cad/   request → design → BOM → cost → CAD
+src/app/(app)/   signed-in pages: dashboard, projects, requests, inventory, quotes, standards, about
+src/app/         landing + intro, login, API routes
+src/proxy.ts     route protection + same-origin check
+integrations/autocad-mcp/   Python service driving AutoCAD over COM (open / convert / draw)
 ```
 
-### API
+## Tests
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /api/ai/analyze` | natural language → validated structured JSON |
-| `POST /api/projects` | analyse the request and create a project |
-| `POST /api/projects/:id/design` | supply missing info and run the full pipeline |
-| `POST /api/projects/:id/review` | engineer actions: edit inputs/BOM/cost, acknowledge warnings, add notes, request changes |
-| `POST /api/projects/:id/approve` | approve (blocked while critical warnings are unacknowledged) |
-| `GET /api/projects/:id/dxf` | download the drawing as DXF |
-| `POST /api/engineering/calculate` | stand-alone calculation from `{ inputs }` |
-| `POST /api/engineering/bom` | calculation + BOM + inventory from `{ inputs }` |
-| `GET /api/inventory` | products with stock status |
-| `POST /api/cost/calculate` | cost preview with an alternative margin |
-| `POST /api/cad/generate` | CAD contract + SVG + DXF |
-| `POST /api/quotes/generate`, `GET /api/quotes` | quotes |
-| `GET /api/standards`, `GET /api/status` | standards & rules, integration status |
-
-### What is real and what is mock
-
-- **Real:** AutoCAD Electrical drawing via MCP (intelligent IEC symbols with tags, ratings and MFG/CAT, saved as DWG; needs AutoCAD Electrical running on the same PC), structured AI extraction with Groq, Gemini or Claude (when a key is set); Zod validation with retry; deterministic engineering math; the standards rule engine and traceability; catalog-based component selection; inventory checks; the cost engine; SVG and DXF generation; the review/approval workflow; Supabase persistence; the printable quote.
-- **Reference data / simplified:** cable ampacity and correction factors are indicative values; labor and engineering hours are estimates; the IP mapping is a configurable company rule.
-- **Mock / not implemented:** NEC rules (selectable as "coming soon" only), authentication, short-circuit and selectivity calculations, and IEC 61439 design verification.
-
-### Product catalog
-
-`data/products.client.json` is the company inventory dataset, used verbatim. `src/lib/inventory/catalog.ts` adds machine-readable attributes (rating, setting range, cross-section, IP) so the engine can match products. Items marked **Demo data** (pushbuttons, E-stop, pilot light, VFD) are dummy items for device types the dataset does not contain.
-
-With this catalog, the demo design reports the overload relay as **Component unavailable**: the only relay in stock (LRD332) covers 17–25 A, and the motors draw 28.3 A. Adding a 23–32 A relay (e.g. LRD340) or a 25–32 A motor protection switch to the inventory resolves it.
-
-## AutoCAD Electrical (MCP)
-
-On a Windows PC with AutoCAD Electrical running:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File integrations/autocad-mcp/start.ps1   # MCP server on 127.0.0.1:8765
-npm run dev
+```bash
+npm run test:unit      # plan engine, auth + local DB atomicity, SQL migrations/functions (PGlite)
+npm run build && npm run test:e2e   # production build on :3100 with a throw-away data folder
 ```
+`scripts/e2e-demo.mjs` refuses to run unless `VEATS_DATA_DIR` points at a throw-away folder, because it releases projects and deducts inventory.
 
-Open a project → **CAD preview** → **Send to AutoCAD Electrical**. VeatsAI sends the CAD contract to the MCP server. The server inserts intelligent IEC symbols (Q/K/F/M tags, ratings, manufacturer and catalog from the BOM), draws wires, and saves a DWG to `Documents\VeatsAI\drawings`.
-Claude Code can use the same server via `.mcp.json` (`autocad-electrical`). Details: `integrations/autocad-mcp/README.md`.
+## Not implemented / limits
+NEC rules, short-circuit and selectivity calculations, IEC 61439 design verification, multi-storey plans (one plan per project), DWG conversion without AutoCAD. Plan analysis is geometric: unusual drawing conventions can need layer/units review (warnings say what was assumed).

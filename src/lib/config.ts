@@ -6,6 +6,4 @@ export const COMPANY = {
   quote_validity_days: 30,
 };
 
-export const DEFAULT_ENGINEER = process.env.DEFAULT_ENGINEER || "Demo Engineer";
-
 export const DEMO_REQUEST = "Design a control panel for 3 motors rated at 15 kW each at 400V.";
