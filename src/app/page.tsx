@@ -1,141 +1,115 @@
 import Link from "next/link";
-import { aiConfigured } from "@/lib/ai/analyze";
+import { LogoMark } from "@/components/ui";
 import { repo } from "@/lib/db";
-import { productStockStatus } from "@/lib/inventory";
-import { Card, PageHeader, SafetyBanner, StatusBadge, StockBadge, eur, fmtDate } from "@/components/ui";
+import type { MessageKey } from "@/lib/i18n";
+import { getT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-const FLOW = ["Client request", "AI understanding", "Missing info", "Engineering engine", "Standards rules", "Components & BOM", "Inventory", "Cost", "CAD", "Quote", "Engineer review", "Approval"];
+const STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+const MODULES = [1, 2, 3, 4, 5, 6] as const;
 
-const HOW: [string, string][] = [
-  ["Describe", "Write the client request in plain language."],
-  ["AI understands", "Extracts inputs; missing data is flagged, never guessed."],
-  ["Engineering", "Deterministic calculations referencing standards."],
-  ["BOM & cost", "Components, stock check and price from inventory."],
-  ["Engineer approves", "Results are preliminary until reviewed and approved."],
-];
-
-export default async function Dashboard() {
+export default async function Landing() {
+  const { t } = await getT();
   const db = repo();
-  const [projects, products] = await Promise.all([db.listProjects(), db.listProducts()]);
-  const inReview = projects.filter((p) => p.status === "ENGINEERING_REVIEW" || p.status === "NEEDS_CHANGES").length;
-  const approved = projects.filter((p) => p.status === "APPROVED");
-  const pipeline = projects.reduce((s, p) => s + (p.design?.cost.total ?? 0), 0);
-  const alerts = products.filter((p) => productStockStatus(p) !== "IN_STOCK");
-
-  const kpis = [
-    { label: "Projects", value: projects.length },
-    { label: "Awaiting engineer review", value: inReview },
-    { label: "Approved", value: approved.length },
-    { label: "Quoted pipeline", value: eur(pipeline) },
+  const [products, projects] = await Promise.all([db.listProducts(), db.listProjects()]);
+  const stats: [string | number, string][] = [
+    [products.length, t("land.stat.catalog")],
+    [8, t("land.stat.stages")],
+    [projects.length, t("land.stat.projects")],
+    [projects.filter((p) => p.status === "APPROVED").length, t("land.stat.approved")],
   ];
 
   return (
     <div>
-      <PageHeader
-        title="Dashboard"
-        subtitle="From natural language → engineering → standards → BOM → inventory → cost → CAD → quote → engineer approval"
-        actions={
-          <Link href="/projects/new" className="btn-primary">
-            + Create New Project
-          </Link>
-        }
-      />
-      <div className="space-y-6 p-8">
-        <SafetyBanner />
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {kpis.map((k) => (
-            <div key={k.label} className="card px-5 py-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{k.label}</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{k.value}</div>
+      {/* Hero */}
+      <section className="mx-auto max-w-6xl px-6 pb-24 pt-24 sm:pt-32">
+        <div className="max-w-3xl">
+          <div className="eyebrow fade-up">{t("land.eyebrow")}</div>
+          <h1 className="fade-up mt-6 text-5xl font-normal leading-[1.05] tracking-tight sm:text-6xl" style={{ animationDelay: "60ms" }}>
+            {t("land.title1")}
+            <br />
+            {t("land.title2")}
+          </h1>
+          <p className="fade-up mt-7 max-w-2xl text-base leading-relaxed text-muted-foreground" style={{ animationDelay: "120ms" }}>
+            {t("land.lead")}
+          </p>
+          <div className="fade-up mt-9 flex flex-wrap gap-3" style={{ animationDelay: "180ms" }}>
+            <Link href="/dashboard" className="btn-primary px-5 py-2.5">
+              {t("land.ctaPrimary")} <span aria-hidden>→</span>
+            </Link>
+            <a href="#how" className="btn-ghost px-5 py-2.5">{t("land.ctaSecondary")}</a>
+          </div>
+          <p className="fade-up mt-6 text-xs text-muted-foreground" style={{ animationDelay: "240ms" }}>{t("land.note")}</p>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="border-y border-border">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 px-6 lg:grid-cols-4">
+          {stats.map(([value, label], i) => (
+            <div key={i} className={`py-8 pr-6 ${i > 0 ? "lg:border-l lg:border-border lg:pl-6" : ""} ${i % 2 === 1 ? "border-l border-border pl-6 lg:pl-6" : ""}`}>
+              <div className="font-mono text-2xl tabular-nums">{value}</div>
+              <div className="mt-2 text-xs text-muted-foreground">{label}</div>
             </div>
           ))}
         </div>
+      </section>
 
-        <Card title="How it works">
-          <ol className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5">
-            {HOW.map(([t, d], i) => (
-              <li key={t} className="rounded-lg bg-slate-50 p-3">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">{i + 1}</span>
-                <div className="mt-2 text-sm font-semibold text-slate-900">{t}</div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">{d}</p>
-              </li>
-            ))}
-          </ol>
-        </Card>
-
-        <Card title="VeatsAI workflow">
-          <div className="flex flex-wrap items-center gap-1.5 px-5 py-4 text-xs">
-            {FLOW.map((s, i) => (
-              <span key={s} className="flex items-center gap-1.5">
-                <span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-700">{s}</span>
-                {i < FLOW.length - 1 && <span className="text-slate-400">→</span>}
-              </span>
-            ))}
-          </div>
-          <div className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-            AI: {aiConfigured() ? "connected (request understanding only)" : "not configured — rule-based parser in use"} · Database: {db.backend === "supabase" ? "Supabase" : "local file (demo)"} · Calculations: deterministic engine
-          </div>
-        </Card>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card title="Recent projects" className="lg:col-span-2" actions={<Link href="/projects" className="text-xs font-medium text-slate-600 hover:underline">View all</Link>}>
-            {projects.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500">
-                No projects yet.{" "}
-                <Link href="/projects/new?demo=1" className="font-medium text-emerald-700 hover:underline">
-                  Start with the demo request →
-                </Link>
+      {/* How it works */}
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-16 px-6 py-24">
+        <div className="eyebrow">{t("land.how.eyebrow")}</div>
+        <h2 className="mt-4 max-w-xl text-3xl font-normal tracking-tight">{t("land.how.title")}</h2>
+        <ol className="mt-12 grid gap-x-16 md:grid-cols-2">
+          {STEPS.map((n) => (
+            <li key={n} className="flex gap-5 border-t border-border py-6">
+              <span className="font-mono text-[11px] text-muted-foreground">{String(n).padStart(2, "0")}</span>
+              <div>
+                <div className="text-sm font-medium">{t(`land.step.${n}.t` as MessageKey)}</div>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t(`land.step.${n}.d` as MessageKey)}</p>
               </div>
-            ) : (
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>Project</th>
-                    <th>Client</th>
-                    <th>Status</th>
-                    <th className="text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projects.slice(0, 8).map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td>
-                        <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
-                          {p.title}
-                        </Link>
-                        <div className="text-xs text-slate-500">{fmtDate(p.created_at)}</div>
-                      </td>
-                      <td>{p.client_name}</td>
-                      <td>
-                        <StatusBadge s={p.status} />
-                      </td>
-                      <td className="text-right tabular-nums">{p.design ? eur(p.design.cost.total) : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Card>
-          <Card title="Inventory alerts" actions={<Link href="/inventory" className="text-xs font-medium text-slate-600 hover:underline">Inventory</Link>}>
-            <ul className="divide-y divide-slate-100">
-              {alerts.length === 0 && <li className="px-5 py-4 text-sm text-slate-500">All items above minimum stock.</li>}
-              {alerts.map((p) => (
-                <li key={p.sku} className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{p.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {p.stock_quantity} {p.unit} · min {p.min_stock_level}
-                    </div>
-                  </div>
-                  <StockBadge s={productStockStatus(p)} />
-                </li>
-              ))}
-            </ul>
-          </Card>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* Modules */}
+      <section id="modules" className="scroll-mt-16 border-t border-border">
+        <div className="mx-auto max-w-6xl px-6 py-24">
+          <div className="eyebrow">{t("land.mod.eyebrow")}</div>
+          <h2 className="mt-4 text-3xl font-normal tracking-tight">{t("land.mod.title")}</h2>
+          <div className="mt-12 grid gap-x-16 md:grid-cols-2">
+            {MODULES.map((n) => (
+              <div key={n} className="border-t border-border py-6">
+                <div className="text-sm font-medium">{t(`land.mod.${n}.t` as MessageKey)}</div>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t(`land.mod.${n}.d` as MessageKey)}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* CTA */}
+      <section className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-6 px-6 py-20">
+          <div>
+            <h2 className="text-2xl font-normal tracking-tight">{t("land.cta.title")}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{t("land.cta.lead")}</p>
+          </div>
+          <Link href="/dashboard" className="btn-primary px-5 py-2.5">
+            {t("nav.enter")} <span aria-hidden>→</span>
+          </Link>
+        </div>
+      </section>
+
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <LogoMark className="h-4 w-4" /> © {new Date().getFullYear()} VeatsAI · {t("land.footer")}
+          </span>
+          <span>{t("land.footer.right")}</span>
+        </div>
+      </footer>
     </div>
   );
 }

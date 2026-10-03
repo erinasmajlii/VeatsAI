@@ -1,16 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ENVIRONMENT_LABEL, INSTALLATION_LABEL, STARTING_METHOD_LABEL } from "@/lib/engineering/constants";
-import { CRITICAL_FIELDS, FIELD_LABEL } from "@/lib/engineering/inputs";
+import { STARTING_METHOD_LABEL } from "@/lib/engineering/constants";
+import { CRITICAL_FIELDS } from "@/lib/engineering/inputs";
+import { eur, fmtDate } from "@/lib/format";
+import type { MessageKey } from "@/lib/i18n";
 import type { StandardDefinition, StandardRule } from "@/lib/standards";
 import type { BomLine, DesignInputs, MotorSpec, Product, ProductType, Project, TracedValue } from "@/lib/types";
-import { Badge, Card, ProvenanceBadge, ResultStatusBadge, SeverityBadge, StockBadge, eur, fmtDate } from "@/components/ui";
+import { useLang, useT } from "@/components/i18n";
+import { Badge, Card, ProvenanceBadge, ResultStatusBadge, SeverityBadge, StockBadge } from "@/components/ui";
 import type { RunAction } from "./workspace";
+
+const ENVIRONMENTS = ["indoor_clean", "indoor_dusty", "outdoor", "wet_washdown"] as const;
+const INSTALLS = ["conduit_on_wall", "cable_tray", "buried", "in_free_air"] as const;
+const fieldKey = (f: string) => `field.${f}` as MessageKey;
 
 // ------------------------------------------------------------------ AI analysis
 
 export function AnalysisCard({ project }: { project: Project }) {
+  const t = useT();
   const a = project.analysis;
   const [raw, setRaw] = useState(false);
   if (!a) return null;
@@ -18,44 +26,44 @@ export function AnalysisCard({ project }: { project: Project }) {
   const recommended = a.missing_information.filter((f) => !(CRITICAL_FIELDS as readonly string[]).includes(f));
   return (
     <Card
-      title="AI Analysis"
-      actions={a.source === "ai" ? <Badge t="violet" title={a.model}>AI generated</Badge> : <Badge t="amber">Rule-based parser (no AI)</Badge>}
+      title={t("ana.title")}
+      actions={a.source === "ai" ? <Badge t="violet" title={a.model}>{t("ana.ai")}{a.model ? ` · ${a.model}` : ""}</Badge> : <Badge t="amber">{t("ana.rule")}</Badge>}
       className="h-full"
     >
-      <div className="space-y-4 p-5 text-sm">
+      <div className="space-y-5 p-5 text-sm">
         <div>
-          <div className="label">Original request</div>
-          <blockquote className="rounded-lg border-l-4 border-slate-300 bg-slate-50 px-3 py-2 font-mono text-[13px] text-slate-700">{project.original_request}</blockquote>
+          <div className="label">{t("ana.original")}</div>
+          <blockquote className="rounded-md border-l-2 border-foreground/40 bg-muted px-3 py-2 font-mono text-[13px] text-foreground/80">{project.original_request}</blockquote>
         </div>
         <div>
-          <div className="label">AI interpretation</div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-            <Kv k="Project type" v={a.project_type.replace(/_/g, " ")} />
-            <Kv k="Motors" v={a.motors.length ? a.motors.map((m) => `${m.quantity} × ${m.power_kw} kW`).join(", ") : "—"} />
-            <Kv k="Voltage" v={a.voltage ? `${a.voltage} V` : "—"} />
-            <Kv k="Starting method" v={a.starting_method ? STARTING_METHOD_LABEL[a.starting_method] : "—"} />
-            <Kv k="Frequency" v={a.frequency ? `${a.frequency} Hz` : "—"} />
-            <Kv k="Environment" v={a.environment ? ENVIRONMENT_LABEL[a.environment] : "—"} />
+          <div className="label">{t("ana.interpretation")}</div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <Kv k={t("ana.projectType")} v={t(`ptype.${a.project_type}` as MessageKey)} />
+            <Kv k={t("ana.motors")} v={a.motors.length ? a.motors.map((m) => `${m.quantity} × ${m.power_kw} kW${m.label ? ` (${m.label})` : ""}`).join(", ") : "—"} />
+            <Kv k={t("ana.voltage")} v={a.voltage ? `${a.voltage} V` : "—"} />
+            <Kv k={t("ana.starting")} v={a.starting_method ? STARTING_METHOD_LABEL[a.starting_method] : "—"} />
+            <Kv k={t("ana.frequency")} v={a.frequency ? `${a.frequency} Hz` : "—"} />
+            <Kv k={t("ana.environment")} v={a.environment ? t(`env.${a.environment}` as MessageKey) : "—"} />
           </dl>
         </div>
         {a.missing_information.length > 0 && (
           <div>
-            <div className="label">Missing information</div>
+            <div className="label">{t("ana.missing")}</div>
             <div className="flex flex-wrap gap-1.5">
-              {critical.map((f) => <Badge key={f} t="red">{FIELD_LABEL[f] ?? f} (required)</Badge>)}
-              {recommended.map((f) => <Badge key={f} t="amber">{FIELD_LABEL[f] ?? f}</Badge>)}
+              {critical.map((f) => <Badge key={f} t="red">{t(fieldKey(f))} ({t("required")})</Badge>)}
+              {recommended.map((f) => <Badge key={f} t="amber">{t(fieldKey(f))}</Badge>)}
             </div>
           </div>
         )}
         {a.notes.length > 0 && (
-          <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
+          <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
             {a.notes.map((n, i) => <li key={i}>{n}</li>)}
           </ul>
         )}
-        <button className="text-xs font-medium text-slate-500 hover:underline" onClick={() => setRaw(!raw)}>
-          {raw ? "Hide" : "Show"} structured JSON
+        <button className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline" onClick={() => setRaw(!raw)}>
+          {raw ? t("ana.hideJson") : t("ana.showJson")}
         </button>
-        {raw && <pre className="max-h-72 overflow-auto rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">{JSON.stringify(a, null, 2)}</pre>}
+        {raw && <pre className="max-h-72 overflow-auto rounded-md bg-zinc-950 p-3 text-[11px] text-zinc-100">{JSON.stringify(a, null, 2)}</pre>}
       </div>
     </Card>
   );
@@ -64,8 +72,8 @@ export function AnalysisCard({ project }: { project: Project }) {
 function Kv({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{k}</dt>
-      <dd className="font-medium">{v}</dd>
+      <dt className="text-xs text-muted-foreground">{k}</dt>
+      <dd className="mt-0.5 font-medium">{v}</dd>
     </div>
   );
 }
@@ -92,6 +100,7 @@ function toForm(i: DesignInputs): Form {
 }
 
 export function InputsCard({ project, busy, onGenerate, run }: { project: Project; busy: string | null; onGenerate: (patch: Record<string, unknown>) => Promise<boolean>; run: RunAction }) {
+  const t = useT();
   const inputs = project.inputs!;
   const original = useMemo(() => toForm(inputs), [inputs]);
   const [f, setF] = useState<Form>(original);
@@ -107,23 +116,20 @@ export function InputsCard({ project, busy, onGenerate, run }: { project: Projec
   for (const k of SCALAR_KEYS) if (f[k] !== original[k]) patch[k] = f[k] === "" ? null : f[k];
   const dirty = Object.keys(patch).length > 0;
 
-  const missingCritical = [!f.motors.length || f.motors.some((m) => !(Number(m.power_kw) > 0)) ? "motors" : null, !f.voltage ? "voltage" : null, !f.starting_method ? "starting_method" : null].filter(Boolean);
+  const missingCritical = [!f.motors.length || f.motors.some((m) => !(Number(m.power_kw) > 0)) ? "motors" : null, !f.voltage ? "voltage" : null, !f.starting_method ? "starting_method" : null].filter(Boolean) as string[];
   const set = (k: keyof Form, v: string) => setF({ ...f, [k]: v });
-  const prov = (k: (typeof SCALAR_KEYS)[number]) => (f[k] !== original[k] ? <Badge t="orange">Edited</Badge> : <ProvenanceBadge p={inputs[k].provenance} />);
-  const need = (k: string, critical = false) => (critical ? (missingCritical.includes(k) ? "border-red-400 bg-red-50" : "") : !f[k as keyof Form] ? "border-amber-300 bg-amber-50/50" : "");
+  const prov = (k: (typeof SCALAR_KEYS)[number]) => (f[k] !== original[k] ? <Badge t="orange">{t("edited")}</Badge> : <ProvenanceBadge p={inputs[k].provenance} />);
+  const need = (k: string, critical = false) =>
+    critical ? (missingCritical.includes(k) ? "border-red-500/60 bg-red-500/5" : "") : !f[k as keyof Form] ? "border-amber-500/40 bg-amber-500/5" : "";
 
   return (
-    <Card
-      title={hasDesign ? "Engineering inputs" : "Complete missing information"}
-      actions={<span className="text-xs text-slate-500">Engineer can edit every value · defaults are shown as “Assumed value”</span>}
-      className="h-full"
-    >
+    <Card title={hasDesign ? t("in.title") : t("in.titleMissing")} actions={<span className="text-xs text-muted-foreground">{t("in.hint")}</span>} className="h-full">
       <div className="space-y-5 p-5">
         <div>
-          <div className="label">Motors</div>
+          <div className="label">{t("in.motors")}</div>
           <table className="tbl">
             <thead>
-              <tr><th>Label</th><th>Quantity</th><th>Power (kW)</th><th></th></tr>
+              <tr><th>{t("in.label")}</th><th>{t("in.qty")}</th><th>{t("in.power")}</th><th></th></tr>
             </thead>
             <tbody>
               {f.motors.map((m, i) => (
@@ -131,75 +137,75 @@ export function InputsCard({ project, busy, onGenerate, run }: { project: Projec
                   <td><input className="input" value={m.label ?? ""} onChange={(e) => setF({ ...f, motors: f.motors.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} /></td>
                   <td><input className="input" type="number" min={1} value={m.quantity} onChange={(e) => setF({ ...f, motors: f.motors.map((x, j) => (j === i ? { ...x, quantity: Number(e.target.value) } : x)) })} /></td>
                   <td><input className="input" type="number" step="0.1" min={0.1} value={m.power_kw} onChange={(e) => setF({ ...f, motors: f.motors.map((x, j) => (j === i ? { ...x, power_kw: Number(e.target.value) } : x)) })} /></td>
-                  <td className="text-right"><button className="text-xs text-red-600 hover:underline" onClick={() => setF({ ...f, motors: f.motors.filter((_, j) => j !== i) })}>Remove</button></td>
+                  <td className="text-right"><button className="text-xs text-red-600 hover:underline dark:text-red-400" onClick={() => setF({ ...f, motors: f.motors.filter((_, j) => j !== i) })}>{t("common.remove")}</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <button className="mt-2 text-xs font-medium text-slate-600 hover:underline" onClick={() => setF({ ...f, motors: [...f.motors, { quantity: 1, power_kw: 7.5, label: `M${f.motors.length + 1}` }] })}>
-            + Add motor group
+          <button className="mt-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline" onClick={() => setF({ ...f, motors: [...f.motors, { quantity: 1, power_kw: 7.5, label: `M${f.motors.length + 1}` }] })}>
+            {t("in.addMotor")}
           </button>
-          {missingCritical.includes("motors") && <p className="mt-1 text-xs text-red-600">Motor power and quantity are required.</p>}
+          {missingCritical.includes("motors") && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t("in.motorsRequired")}</p>}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Supply voltage (V) *" badge={prov("voltage")}>
-            <input className={`input ${need("voltage", true)}`} type="number" value={f.voltage} onChange={(e) => set("voltage", e.target.value)} placeholder="e.g. 400" />
+          <Field label={t("in.voltage")} badge={prov("voltage")}>
+            <input className={`input ${need("voltage", true)}`} type="number" value={f.voltage} onChange={(e) => set("voltage", e.target.value)} placeholder="400" />
           </Field>
-          <Field label="Starting method *" badge={prov("starting_method")}>
+          <Field label={t("in.starting")} badge={prov("starting_method")}>
             <select className={`input ${need("starting_method", true)}`} value={f.starting_method} onChange={(e) => set("starting_method", e.target.value)}>
-              <option value="">— select —</option>
+              <option value="">{t("in.select")}</option>
               {Object.entries(STARTING_METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </Field>
-          <Field label="Frequency (Hz)" badge={prov("frequency")}>
+          <Field label={t("in.frequency")} badge={prov("frequency")}>
             <select className="input" value={f.frequency} onChange={(e) => set("frequency", e.target.value)}>
               <option value="50">50</option>
               <option value="60">60</option>
             </select>
           </Field>
-          <Field label="Power factor (cos φ)" badge={prov("power_factor")}>
+          <Field label={t("in.pf")} badge={prov("power_factor")}>
             <input className="input" type="number" step="0.01" value={f.power_factor} onChange={(e) => set("power_factor", e.target.value)} />
           </Field>
-          <Field label="Efficiency (η)" badge={prov("efficiency")}>
+          <Field label={t("in.eff")} badge={prov("efficiency")}>
             <input className="input" type="number" step="0.01" value={f.efficiency} onChange={(e) => set("efficiency", e.target.value)} />
           </Field>
-          <Field label="Motor cable length (m)" badge={prov("cable_length_m")}>
-            <input className={`input ${need("cable_length_m")}`} type="number" value={f.cable_length_m} onChange={(e) => set("cable_length_m", e.target.value)} placeholder="Not provided" />
+          <Field label={t("in.cable")} badge={prov("cable_length_m")}>
+            <input className={`input ${need("cable_length_m")}`} type="number" value={f.cable_length_m} onChange={(e) => set("cable_length_m", e.target.value)} placeholder={t("in.notProvided")} />
           </Field>
-          <Field label="Environment (IP rating)" badge={prov("environment")}>
+          <Field label={t("in.env")} badge={prov("environment")}>
             <select className={`input ${need("environment")}`} value={f.environment} onChange={(e) => set("environment", e.target.value)}>
-              <option value="">Not specified</option>
-              {Object.entries(ENVIRONMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              <option value="">{t("in.notSpecified")}</option>
+              {ENVIRONMENTS.map((k) => <option key={k} value={k}>{t(`env.${k}` as MessageKey)}</option>)}
             </select>
           </Field>
-          <Field label="Cable installation method" badge={prov("installation_method")}>
+          <Field label={t("in.install")} badge={prov("installation_method")}>
             <select className={`input ${need("installation_method")}`} value={f.installation_method} onChange={(e) => set("installation_method", e.target.value)}>
-              <option value="">Not specified</option>
-              {Object.entries(INSTALLATION_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              <option value="">{t("in.notSpecified")}</option>
+              {INSTALLS.map((k) => <option key={k} value={k}>{t(`inst.${k}` as MessageKey)}</option>)}
             </select>
           </Field>
-          <Field label="Ambient temperature (°C)" badge={prov("ambient_temperature_c")}>
-            <input className={`input ${need("ambient_temperature_c")}`} type="number" value={f.ambient_temperature_c} onChange={(e) => set("ambient_temperature_c", e.target.value)} placeholder="Not provided (30 °C ref.)" />
+          <Field label={t("in.ambient")} badge={prov("ambient_temperature_c")}>
+            <input className={`input ${need("ambient_temperature_c")}`} type="number" value={f.ambient_temperature_c} onChange={(e) => set("ambient_temperature_c", e.target.value)} placeholder={`${t("in.notProvided")} (30 °C ref.)`} />
           </Field>
-          <Field label="Short-circuit current (kA)" badge={prov("short_circuit_current_ka")}>
-            <input className={`input ${need("short_circuit_current_ka")}`} type="number" step="0.1" value={f.short_circuit_current_ka} onChange={(e) => set("short_circuit_current_ka", e.target.value)} placeholder="Not provided" />
+          <Field label={t("in.isc")} badge={prov("short_circuit_current_ka")}>
+            <input className={`input ${need("short_circuit_current_ka")}`} type="number" step="0.1" value={f.short_circuit_current_ka} onChange={(e) => set("short_circuit_current_ka", e.target.value)} placeholder={t("in.notProvided")} />
           </Field>
-          <Field label="Max voltage drop (%)" badge={prov("max_voltage_drop_pct")}>
+          <Field label={t("in.vdrop")} badge={prov("max_voltage_drop_pct")}>
             <input className="input" type="number" step="0.5" value={f.max_voltage_drop_pct} onChange={(e) => set("max_voltage_drop_pct", e.target.value)} />
           </Field>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4">
-          {missingCritical.length > 0 && <span className="text-xs font-medium text-red-600">Required: {missingCritical.map((k) => FIELD_LABEL[k!]).join(", ")}</span>}
-          {hasDesign && dirty && <button className="btn-ghost" onClick={() => setF(original)}>Discard</button>}
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
+          {missingCritical.length > 0 && <span className="text-xs font-medium text-red-600 dark:text-red-400">{t("in.required", { fields: missingCritical.map((k) => t(fieldKey(k))).join(", ") })}</span>}
+          {hasDesign && dirty && <button className="btn-ghost" onClick={() => setF(original)}>{t("in.discard")}</button>}
           {hasDesign ? (
             <button className="btn-primary" disabled={!dirty || !!busy || missingCritical.length > 0} onClick={() => run({ type: "update_inputs", patch })}>
-              {busy === "update_inputs" ? "Recalculating…" : "Recalculate Design"}
+              {busy === "update_inputs" ? t("in.recalculating") : t("in.recalc")}
             </button>
           ) : (
             <button className="btn-accent" disabled={!!busy || missingCritical.length > 0} onClick={() => onGenerate(patch)}>
-              {busy === "design" ? "Running engineering engine…" : "Generate Engineering Design →"}
+              {busy === "design" ? t("in.generating") : t("in.generate")}
             </button>
           )}
         </div>
@@ -212,7 +218,7 @@ function Field({ label, badge, children }: { label: string; badge?: React.ReactN
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
+        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
         {badge}
       </div>
       {children}
@@ -223,31 +229,32 @@ function Field({ label, badge, children }: { label: string; badge?: React.ReactN
 // ------------------------------------------------------------------ results
 
 export function ResultsCard({ project }: { project: Project }) {
+  const t = useT();
   const calc = project.design!.calculation;
   const approved = project.status === "APPROVED";
   const [open, setOpen] = useState<string | null>(null);
   return (
-    <Card title="Engineering calculations" actions={<Badge t="blue">Deterministic engine — no LLM math</Badge>}>
-      <div className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Total connected current" value={`${calc.total_current_a} A`} />
-        <Metric label="Main breaker" value={`${calc.main_breaker_a} A`} />
-        <Metric label="Motor circuits" value={calc.motor_circuits.map((c) => `${c.quantity} × ${c.power_kw} kW @ ${c.full_load_current_a} A`).join(" · ")} />
-        <Metric label="Enclosure IP" value={calc.required_ip_rating ?? "Requires environment"} />
+    <Card title={t("res.title")} actions={<Badge t="blue">{t("res.badge")}</Badge>}>
+      <div className="grid gap-4 border-b border-border p-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label={t("res.total")} value={`${calc.total_current_a} A`} />
+        <Metric label={t("res.main")} value={`${calc.main_breaker_a} A`} />
+        <Metric label={t("res.circuits")} value={calc.motor_circuits.map((c) => `${c.quantity} × ${c.power_kw} kW @ ${c.full_load_current_a} A`).join(" · ")} />
+        <Metric label={t("res.ip")} value={calc.required_ip_rating ?? t("res.ipNeeds")} />
       </div>
       <div className="overflow-x-auto">
         <table className="tbl">
           <thead>
-            <tr><th>Result</th><th>Value</th><th>Reason / traceability</th><th>Standard reference</th><th>Status</th></tr>
+            <tr><th>{t("res.col.result")}</th><th>{t("res.col.value")}</th><th>{t("res.col.reason")}</th><th>{t("res.col.standard")}</th><th>{t("common.status")}</th></tr>
           </thead>
           <tbody>
             {calc.results.map((r) => (
-              <tr key={r.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setOpen(open === r.id ? null : r.id)}>
+              <tr key={r.id} className="cursor-pointer hover:bg-muted/60" onClick={() => setOpen(open === r.id ? null : r.id)}>
                 <td className="font-medium">{r.label}<div className="mt-1"><ProvenanceBadge p={r.provenance} /></div></td>
                 <td className="whitespace-nowrap font-mono text-[13px] font-semibold">{r.value}</td>
-                <td className="text-xs text-slate-600">
+                <td className="text-xs text-muted-foreground">
                   {r.reason}
-                  {r.formula && <div className="mt-1 font-mono text-[11px] text-slate-500">{r.formula}</div>}
-                  {open === r.id && <div className="mt-1 text-[11px] text-slate-400">Rule: {r.rule_id}</div>}
+                  {r.formula && <div className="mt-1 font-mono text-[11px]">{r.formula}</div>}
+                  {open === r.id && <div className="mt-1 text-[11px] opacity-70">{t("res.rule")}: {r.rule_id}</div>}
                 </td>
                 <td className="text-xs">{r.standards.join(" / ")}</td>
                 <td><ResultStatusBadge s={r.status} approved={approved && r.status !== "INSUFFICIENT_DATA"} /></td>
@@ -263,8 +270,8 @@ export function ResultsCard({ project }: { project: Project }) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold">{value}</div>
+      <div className="eyebrow">{label}</div>
+      <div className="mt-1 font-mono text-sm">{value}</div>
     </div>
   );
 }
@@ -272,27 +279,28 @@ function Metric({ label, value }: { label: string; value: string }) {
 // ------------------------------------------------------------------ warnings
 
 export function WarningsCard({ project, run, busy }: { project: Project; run: RunAction; busy: string | null }) {
+  const t = useT();
   const ws = project.design!.calculation.warnings;
   const order = { critical: 0, warning: 1, info: 2 };
   const sorted = [...ws].sort((a, b) => order[a.severity] - order[b.severity]);
   const open = ws.filter((w) => !w.acknowledged).length;
   return (
-    <Card title={`Warnings & unresolved issues (${open} open)`} actions={<span className="text-xs text-slate-500">Critical items must be acknowledged before approval</span>}>
-      <ul className="divide-y divide-slate-100">
+    <Card title={t("warn.title", { n: open })} actions={<span className="text-xs text-muted-foreground">{t("warn.hint")}</span>}>
+      <ul className="divide-y divide-border">
         {sorted.map((w) => (
-          <li key={w.id} className={`flex items-start gap-3 px-5 py-2.5 text-sm ${w.acknowledged ? "opacity-60" : ""}`}>
-            <span className="mt-0.5">{w.severity === "info" ? "ℹ" : "⚠"}</span>
+          <li key={w.id} className={`flex items-start gap-3 px-5 py-2.5 text-sm ${w.acknowledged ? "opacity-55" : ""}`}>
+            <span className="mt-0.5 text-muted-foreground">{w.severity === "info" ? "ℹ" : "⚠"}</span>
             <div className="min-w-0 flex-1">
               <div className={w.acknowledged ? "line-through" : ""}>{w.message}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <SeverityBadge s={w.severity} />
                 {w.standards?.map((s) => <Badge key={s} t="cyan">{s}</Badge>)}
-                {w.acknowledged && <span className="text-[11px] text-slate-500">Acknowledged by {w.acknowledged_by}</span>}
+                {w.acknowledged && <span className="text-[11px] text-muted-foreground">{t("warn.ackBy", { name: w.acknowledged_by ?? "" })}</span>}
               </div>
             </div>
-            <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-slate-600">
-              <input type="checkbox" checked={!!w.acknowledged} disabled={!!busy} onChange={(e) => run({ type: "ack_warning", warning_id: w.id, acknowledged: e.target.checked })} />
-              Acknowledge
+            <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" className="accent-foreground" checked={!!w.acknowledged} disabled={!!busy} onChange={(e) => run({ type: "ack_warning", warning_id: w.id, acknowledged: e.target.checked })} />
+              {t("warn.ack")}
             </label>
           </li>
         ))}
@@ -322,6 +330,7 @@ function candidatesFor(line: BomLine, products: Product[]): Product[] {
 }
 
 export function BomCard({ project, products, run, busy }: { project: Project; products: Product[]; run: RunAction; busy: string | null }) {
+  const t = useT();
   const bom = project.design!.bom;
   const [addSku, setAddSku] = useState("");
   const [addQty, setAddQty] = useState("1");
@@ -329,13 +338,13 @@ export function BomCard({ project, products, run, busy }: { project: Project; pr
   bom.forEach((l) => counts[l.stock_status]++);
   return (
     <Card
-      title={`Bill of Materials · Inventory check (${bom.length} lines)`}
+      title={t("bom.title", { n: bom.length })}
       actions={
         <div className="flex flex-wrap gap-1.5">
-          <Badge t="emerald">✓ {counts.IN_STOCK} in stock</Badge>
-          <Badge t="amber">⚠ {counts.LOW_STOCK} low</Badge>
-          <Badge t="red">✕ {counts.OUT_OF_STOCK} out</Badge>
-          <Badge t="red">✕ {counts.UNAVAILABLE} unavailable</Badge>
+          <Badge t="emerald">✓ {counts.IN_STOCK} {t("bom.inStock")}</Badge>
+          <Badge t="amber">⚠ {counts.LOW_STOCK} {t("bom.low")}</Badge>
+          <Badge t="red">✕ {counts.OUT_OF_STOCK} {t("bom.out")}</Badge>
+          <Badge t="red">✕ {counts.UNAVAILABLE} {t("bom.unavailable")}</Badge>
         </div>
       }
     >
@@ -343,7 +352,7 @@ export function BomCard({ project, products, run, busy }: { project: Project; pr
         <table className="tbl">
           <thead>
             <tr>
-              <th>Component</th><th>Specification</th><th className="w-24">Qty</th><th className="w-28">Unit price</th><th className="text-right">Line total</th><th>Stock</th><th>Standard</th><th></th>
+              <th>{t("bom.col.component")}</th><th>{t("bom.col.spec")}</th><th className="w-24">{t("bom.col.qty")}</th><th className="w-28">{t("bom.col.price")}</th><th className="text-right">{t("bom.col.total")}</th><th>{t("bom.col.stock")}</th><th>{t("bom.col.standard")}</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -353,16 +362,16 @@ export function BomCard({ project, products, run, busy }: { project: Project; pr
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={8} className="bg-slate-50">
+              <td colSpan={8} className="bg-muted/50">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">Add component:</span>
+                  <span className="text-xs font-medium text-muted-foreground">{t("bom.addComponent")}</span>
                   <select className="input max-w-sm" value={addSku} onChange={(e) => setAddSku(e.target.value)}>
-                    <option value="">— select catalog item —</option>
+                    <option value="">{t("bom.selectItem")}</option>
                     {products.map((p) => <option key={p.sku} value={p.sku}>{p.sku} · {p.name}</option>)}
                   </select>
                   <input className="input w-20" type="number" min={1} value={addQty} onChange={(e) => setAddQty(e.target.value)} />
                   <button className="btn-ghost" disabled={!addSku || !!busy} onClick={async () => { if (await run({ type: "add_line", sku: addSku, quantity: Number(addQty) })) setAddSku(""); }}>
-                    Add
+                    {t("common.add")}
                   </button>
                 </div>
               </td>
@@ -375,55 +384,52 @@ export function BomCard({ project, products, run, busy }: { project: Project; pr
 }
 
 function BomRow({ line: l, products, run, busy }: { line: BomLine; products: Product[]; run: RunAction; busy: string | null }) {
+  const t = useT();
   const [qty, setQty] = useState(String(l.quantity));
   const [price, setPrice] = useState(String(l.unit_price));
   const [replacing, setReplacing] = useState(false);
   const save = (o: Record<string, unknown>) => run({ type: "bom_override", line_id: l.id, override: o });
   const unavailable = l.stock_status === "UNAVAILABLE";
   return (
-    <tr className={unavailable ? "bg-red-50/60" : ""}>
+    <tr className={unavailable ? "bg-red-500/5" : ""}>
       <td className="min-w-64">
-        <div className="text-[11px] uppercase tracking-wide text-slate-500">{l.category} · {l.function}</div>
+        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{l.category} · {l.function}</div>
         <div className="font-medium">{l.name}</div>
-        <div className="text-[11px] text-slate-500">{l.sku ?? "—"} {l.manufacturer && `· ${l.manufacturer}`}</div>
-        <div className="mt-1 text-[11px] text-slate-500" title={l.reasoning}>{l.reasoning}</div>
+        <div className="font-mono text-[11px] text-muted-foreground">{l.sku ?? "—"} {l.manufacturer && `· ${l.manufacturer}`}</div>
+        <div className="mt-1 text-[11px] text-muted-foreground" title={l.reasoning}>{l.reasoning}</div>
         {l.overridden && <div className="mt-1"><ProvenanceBadge p="ENGINEER_OVERRIDE" /></div>}
         {replacing && (
-          <select
-            className="input mt-2"
-            defaultValue=""
-            onChange={async (e) => { if (e.target.value && (await save({ sku: e.target.value }))) setReplacing(false); }}
-          >
-            <option value="">— replace with —</option>
-            {candidatesFor(l, products).map((p) => <option key={p.sku} value={p.sku}>{p.sku} · {p.name} · {eur(p.selling_price_eur)} · stock {p.stock_quantity}</option>)}
+          <select className="input mt-2" defaultValue="" onChange={async (e) => { if (e.target.value && (await save({ sku: e.target.value }))) setReplacing(false); }}>
+            <option value="">{t("bom.replaceWith")}</option>
+            {candidatesFor(l, products).map((p) => <option key={p.sku} value={p.sku}>{p.sku} · {p.name} · {eur(p.selling_price_eur)} · {p.stock_quantity}</option>)}
           </select>
         )}
       </td>
       <td className="text-xs">
         <div className="font-mono">{l.specification}</div>
-        <div className="mt-1 text-slate-500">Required: {l.required_spec}</div>
+        <div className="mt-1 text-muted-foreground">{t("bom.required")}: {l.required_spec}</div>
       </td>
       <td>
         <input className="input px-2" type="number" min={0} value={qty} onChange={(e) => setQty(e.target.value)} onBlur={() => Number(qty) !== l.quantity && save({ quantity: Number(qty) })} />
-        <div className="mt-0.5 text-[11px] text-slate-500">{l.unit}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">{l.unit}</div>
       </td>
       <td>
         <input className="input px-2" type="number" min={0} step="0.01" value={price} disabled={unavailable} onChange={(e) => setPrice(e.target.value)} onBlur={() => Number(price) !== l.unit_price && save({ unit_price: Number(price) })} />
       </td>
-      <td className="text-right font-medium tabular-nums">{unavailable ? "—" : eur(l.quantity * l.unit_price)}</td>
+      <td className="text-right font-mono tabular-nums">{unavailable ? "—" : eur(l.quantity * l.unit_price)}</td>
       <td>
         <StockBadge s={l.stock_status} />
-        {l.sku && <div className="mt-1 text-[11px] text-slate-500">avail. {l.stock} / req. {l.quantity}</div>}
+        {l.sku && <div className="mt-1 text-[11px] text-muted-foreground">{t("bom.avail", { a: l.stock, r: l.quantity })}</div>}
       </td>
       <td className="text-xs">{l.standard_reference.join(" / ") || "—"}</td>
       <td className="whitespace-nowrap text-right text-xs">
-        <button className="font-medium text-slate-700 hover:underline" disabled={!!busy} onClick={() => setReplacing(!replacing)}>{replacing ? "Cancel" : "Replace"}</button>
+        <button className="font-medium hover:underline" disabled={!!busy} onClick={() => setReplacing(!replacing)}>{replacing ? t("common.cancel") : t("common.replace")}</button>
         <br />
-        <button className="text-red-600 hover:underline" disabled={!!busy} onClick={() => save({ removed: true })}>Remove</button>
+        <button className="text-red-600 hover:underline dark:text-red-400" disabled={!!busy} onClick={() => save({ removed: true })}>{t("common.remove")}</button>
         {l.overridden && !l.id.startsWith("custom") && (
           <>
             <br />
-            <button className="text-slate-500 hover:underline" disabled={!!busy} onClick={() => run({ type: "bom_override", line_id: l.id, override: null })}>Reset</button>
+            <button className="text-muted-foreground hover:underline" disabled={!!busy} onClick={() => run({ type: "bom_override", line_id: l.id, override: null })}>{t("common.reset")}</button>
           </>
         )}
       </td>
@@ -431,9 +437,66 @@ function BomRow({ line: l, products, run, busy }: { line: BomLine; products: Pro
   );
 }
 
+// ------------------------------------------------------------------ stock
+
+/** Stage 05 — required vs available per SKU (aggregated across BOM lines). */
+export function StockCard({ project }: { project: Project }) {
+  const t = useT();
+  const rows = new Map<string, { line: BomLine; required: number }>();
+  const unavailable: BomLine[] = [];
+  for (const l of project.design!.bom) {
+    if (!l.sku) {
+      unavailable.push(l);
+      continue;
+    }
+    const r = rows.get(l.sku);
+    if (r) r.required += l.quantity;
+    else rows.set(l.sku, { line: l, required: l.quantity });
+  }
+  const list = [...rows.values()].sort((a, b) => order(a.line) - order(b.line));
+  function order(l: BomLine) {
+    return { OUT_OF_STOCK: 0, UNAVAILABLE: 0, LOW_STOCK: 1, IN_STOCK: 2 }[l.stock_status];
+  }
+  return (
+    <Card title={t("stock.title")} actions={<span className="text-xs text-muted-foreground">{t("stock.lead")}</span>}>
+      <div className="overflow-x-auto">
+        <table className="tbl">
+          <thead>
+            <tr><th>SKU</th><th>{t("bom.col.component")}</th><th className="text-right">{t("stock.col.required")}</th><th className="text-right">{t("stock.col.available")}</th><th className="text-right">{t("stock.col.after")}</th><th>{t("common.status")}</th></tr>
+          </thead>
+          <tbody>
+            {unavailable.map((l) => (
+              <tr key={l.id} className="bg-red-500/5">
+                <td className="font-mono text-xs">—</td>
+                <td><div className="font-medium">{l.function}</div><div className="text-[11px] text-muted-foreground">{l.required_spec}</div></td>
+                <td className="text-right font-mono">{l.quantity}</td>
+                <td className="text-right font-mono">0</td>
+                <td className="text-right font-mono">—</td>
+                <td><StockBadge s="UNAVAILABLE" /></td>
+              </tr>
+            ))}
+            {list.map(({ line, required }) => (
+              <tr key={line.sku}>
+                <td className="whitespace-nowrap font-mono text-xs">{line.sku}</td>
+                <td>{line.name}</td>
+                <td className="text-right font-mono">{required} <span className="text-muted-foreground">{line.unit === "pcs" ? "" : line.unit}</span></td>
+                <td className="text-right font-mono">{line.stock}</td>
+                <td className={`text-right font-mono ${line.stock - required < line.min_stock_level ? "text-amber-700 dark:text-amber-300" : ""}`}>{line.stock - required}</td>
+                <td><StockBadge s={line.stock_status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {unavailable.length === 0 && list.every((r) => r.line.stock_status === "IN_STOCK") && <p className="px-5 py-3 text-xs text-muted-foreground">{t("stock.allGood")}</p>}
+    </Card>
+  );
+}
+
 // ------------------------------------------------------------------ cost
 
 export function CostCard({ project, run, busy }: { project: Project; run: RunAction; busy: string | null }) {
+  const t = useT();
   const c = project.design!.cost;
   const s = project.cost_settings;
   const [margin, setMargin] = useState(String(c.margin_pct));
@@ -443,36 +506,34 @@ export function CostCard({ project, run, busy }: { project: Project; run: RunAct
   const [er, setEr] = useState(String(s.engineering_rate_eur_h));
   const dirty = Number(margin) !== c.margin_pct || Number(lh) !== s.labor_hours.value || Number(eh) !== s.engineering_hours.value || Number(lr) !== s.labor_rate_eur_h || Number(er) !== s.engineering_rate_eur_h;
   return (
-    <Card title="Cost calculation" className="h-full">
+    <Card title={t("cost.title")} className="h-full">
       <div className="p-5">
         <table className="w-full text-sm">
           <tbody className="[&_td]:py-1.5">
-            <tr><td>Material cost <span className="text-xs text-slate-500">(selling price)</span></td><td className="text-right tabular-nums">{eur(c.material_cost)}</td></tr>
+            <tr><td>{t("cost.material")} <span className="text-xs text-muted-foreground">{t("cost.materialHint")}</span></td><td className="text-right font-mono tabular-nums">{eur(c.material_cost)}</td></tr>
             <tr>
-              <td>Labor <span className="text-xs text-slate-500">{c.labor_hours} h × {eur(s.labor_rate_eur_h)}/h</span> <ProvenanceBadge p={s.labor_hours.provenance} /></td>
-              <td className="text-right tabular-nums">{eur(c.labor_cost)}</td>
+              <td>{t("cost.labor")} <span className="text-xs text-muted-foreground">{c.labor_hours} h × {eur(s.labor_rate_eur_h)}/h</span> <ProvenanceBadge p={s.labor_hours.provenance} /></td>
+              <td className="text-right font-mono tabular-nums">{eur(c.labor_cost)}</td>
             </tr>
             <tr>
-              <td>Engineering <span className="text-xs text-slate-500">{c.engineering_hours} h × {eur(s.engineering_rate_eur_h)}/h</span> <ProvenanceBadge p={s.engineering_hours.provenance} /></td>
-              <td className="text-right tabular-nums">{eur(c.engineering_cost)}</td>
+              <td>{t("cost.engineering")} <span className="text-xs text-muted-foreground">{c.engineering_hours} h × {eur(s.engineering_rate_eur_h)}/h</span> <ProvenanceBadge p={s.engineering_hours.provenance} /></td>
+              <td className="text-right font-mono tabular-nums">{eur(c.engineering_cost)}</td>
             </tr>
-            <tr className="border-t border-slate-200"><td>Subtotal</td><td className="text-right tabular-nums">{eur(c.subtotal)}</td></tr>
-            <tr><td>Margin {c.margin_pct}%</td><td className="text-right tabular-nums">{eur(c.margin_amount)}</td></tr>
-            <tr className="border-t-2 border-slate-900 text-base font-semibold"><td>Final quote (excl. VAT)</td><td className="text-right tabular-nums">{eur(c.total)}</td></tr>
+            <tr className="border-t border-border"><td>{t("cost.subtotal")}</td><td className="text-right font-mono tabular-nums">{eur(c.subtotal)}</td></tr>
+            <tr><td>{t("cost.margin", { pct: c.margin_pct })}</td><td className="text-right font-mono tabular-nums">{eur(c.margin_amount)}</td></tr>
+            <tr className="border-t-2 border-foreground text-base font-medium"><td>{t("cost.final")}</td><td className="text-right font-mono tabular-nums">{eur(c.total)}</td></tr>
           </tbody>
         </table>
-        <div className="mt-2 text-xs text-slate-500">Internal material purchase cost: {eur(c.material_purchase_cost)}</div>
+        <div className="mt-2 text-xs text-muted-foreground">{t("cost.purchase", { v: eur(c.material_purchase_cost) })}</div>
         {c.excluded_lines.length > 0 && (
-          <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Not costed (unavailable or quantity 0): {c.excluded_lines.join("; ")}
-          </div>
+          <div className="mt-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">{t("cost.excluded", { list: c.excluded_lines.join("; ") })}</div>
         )}
-        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-5">
-          <Field label="Margin %"><input className="input" type="number" value={margin} onChange={(e) => setMargin(e.target.value)} /></Field>
-          <Field label="Labor h"><input className="input" type="number" value={lh} onChange={(e) => setLh(e.target.value)} /></Field>
-          <Field label="€/h labor"><input className="input" type="number" value={lr} onChange={(e) => setLr(e.target.value)} /></Field>
-          <Field label="Eng. h"><input className="input" type="number" value={eh} onChange={(e) => setEh(e.target.value)} /></Field>
-          <Field label="€/h eng."><input className="input" type="number" value={er} onChange={(e) => setEr(e.target.value)} /></Field>
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 sm:grid-cols-5">
+          <Field label={t("cost.marginPct")}><input className="input" type="number" value={margin} onChange={(e) => setMargin(e.target.value)} /></Field>
+          <Field label={t("cost.laborH")}><input className="input" type="number" value={lh} onChange={(e) => setLh(e.target.value)} /></Field>
+          <Field label={t("cost.laborRate")}><input className="input" type="number" value={lr} onChange={(e) => setLr(e.target.value)} /></Field>
+          <Field label={t("cost.engH")}><input className="input" type="number" value={eh} onChange={(e) => setEh(e.target.value)} /></Field>
+          <Field label={t("cost.engRate")}><input className="input" type="number" value={er} onChange={(e) => setEr(e.target.value)} /></Field>
         </div>
         <div className="mt-3 flex justify-end">
           <button
@@ -491,7 +552,7 @@ export function CostCard({ project, run, busy }: { project: Project; run: RunAct
               })
             }
           >
-            {busy === "cost_settings" ? "Updating…" : "Update cost"}
+            {busy === "cost_settings" ? t("cost.updating") : t("cost.update")}
           </button>
         </div>
       </div>
@@ -502,32 +563,33 @@ export function CostCard({ project, run, busy }: { project: Project; run: RunAct
 // ------------------------------------------------------------------ CAD
 
 export function CadCard({ project }: { project: Project }) {
+  const t = useT();
   const d = project.design!;
   const [json, setJson] = useState(false);
   return (
     <Card
-      title="CAD preview — single-line diagram"
+      title={t("cad.title")}
       className="h-full"
       actions={
         d.cad && (
           <>
             <Badge t="slate">{d.cad.adapter}</Badge>
-            <a className="btn-ghost py-1 text-xs" href={`/api/projects/${project.id}/dxf`}>Download DXF</a>
-            <button className="btn-ghost py-1 text-xs" onClick={() => setJson(!json)}>{json ? "Diagram" : "CAD JSON"}</button>
+            <a className="btn-ghost py-1 text-xs" href={`/api/projects/${project.id}/dxf`}>{t("cad.dxf")}</a>
+            <button className="btn-ghost py-1 text-xs" onClick={() => setJson(!json)}>{json ? t("cad.diagram") : t("cad.json")}</button>
           </>
         )
       }
     >
       <div className="p-4">
         {!d.cad ? (
-          <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">{d.cad_error ?? "CAD preview unavailable."}</div>
+          <div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">{d.cad_error ?? t("cad.unavailable")}</div>
         ) : json ? (
-          <pre className="max-h-[480px] overflow-auto rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">{JSON.stringify(d.cad.contract, null, 2)}</pre>
+          <pre className="max-h-[480px] overflow-auto rounded-md bg-zinc-950 p-3 text-[11px] text-zinc-100">{JSON.stringify(d.cad.contract, null, 2)}</pre>
         ) : (
-          // SVG is produced by our own local generator from escaped text — not user HTML.
-          <div className="overflow-auto rounded-lg border border-slate-200" dangerouslySetInnerHTML={{ __html: d.cad.svg }} />
+          // SVG is produced by our own local generator from escaped text — not user HTML. The drawing sheet stays white in dark mode.
+          <div className="overflow-auto rounded-md border border-border bg-white" dangerouslySetInnerHTML={{ __html: d.cad.svg }} />
         )}
-        <p className="mt-2 text-[11px] text-slate-500">Preliminary drawing generated from the CAD data contract. The same JSON is sent to AutoCAD Electrical via MCP.</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">{t("cad.note")}</p>
         <AutocadExport project={project} />
       </div>
     </Card>
@@ -536,6 +598,7 @@ export function CadCard({ project }: { project: Project }) {
 
 /** Sends the CAD contract to AutoCAD Electrical through the MCP server (integrations/autocad-mcp). */
 function AutocadExport({ project }: { project: Project }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(project.design?.autocad_export ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -545,31 +608,31 @@ function AutocadExport({ project }: { project: Project }) {
     try {
       const res = await fetch("/api/cad/autocad", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ project_id: project.id }) });
       const data = await res.json();
-      if (!res.ok) setError(data.error ?? "AutoCAD export failed.");
+      if (!res.ok) setError(data.error ?? t("cad.failed"));
       else setResult(data);
     } catch {
-      setError("AutoCAD export failed.");
+      setError(t("cad.failed"));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+    <div className="mt-3 rounded-md border border-border bg-muted/50 px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs">
-          <span className="font-semibold">AutoCAD Electrical</span>
-          <span className="text-slate-500"> · intelligent IEC symbols (Q/K/F/M tags, ratings, MFG/CAT) via MCP</span>
+          <span className="font-medium">{t("cad.acad")}</span>
+          <span className="text-muted-foreground"> · {t("cad.acadHint")}</span>
         </div>
         <button className="btn-primary py-1 text-xs" disabled={busy} onClick={send}>
-          {busy ? "Drawing in AutoCAD…" : "Send to AutoCAD Electrical"}
+          {busy ? t("cad.sending") : t("cad.send")}
         </button>
       </div>
       {result && (
-        <div className="mt-2 text-[11px] text-emerald-800">
-          ✓ {result.symbols_inserted} symbols drawn ({result.feeders_drawn}/{result.feeders_total} feeders) → <span className="font-mono break-all">{result.dwg_path}</span>
+        <div className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+          ✓ {t("cad.done", { n: result.symbols_inserted, f: result.feeders_drawn, t: result.feeders_total })} <span className="break-all font-mono">{result.dwg_path}</span>
         </div>
       )}
-      {error && <div className="mt-2 text-[11px] text-red-700">{error}</div>}
+      {error && <div className="mt-2 text-[11px] text-red-700 dark:text-red-300">{error}</div>}
     </div>
   );
 }
@@ -577,29 +640,30 @@ function AutocadExport({ project }: { project: Project }) {
 // ------------------------------------------------------------------ standards
 
 export function StandardsCard({ project, standards, rules }: { project: Project; standards: StandardDefinition[]; rules: StandardRule[] }) {
+  const t = useT();
   const calc = project.design!.calculation;
   const ruleIds = new Set([...calc.results.map((r) => r.rule_id), ...calc.warnings.map((w) => w.rule_id).filter(Boolean)]);
   const codes = new Set([...calc.results.flatMap((r) => r.standards), ...project.design!.bom.flatMap((l) => l.standard_reference)]);
   const used = standards.filter((s) => codes.has(s.code));
   return (
-    <Card title="Standards used" actions={<Badge t="cyan">{calc.inputs_snapshot.standard} rule set</Badge>}>
+    <Card title={t("std.title")} actions={<Badge t="cyan">{t("std.ruleSet", { family: calc.inputs_snapshot.standard })}</Badge>}>
       <div className="grid gap-4 p-5 lg:grid-cols-2">
         <ul className="space-y-2">
           {used.map((s) => (
-            <li key={s.code} className="rounded-lg border border-slate-200 px-3 py-2">
-              <div className="text-sm font-semibold">{s.code} <span className="font-normal text-slate-600">— {s.title}</span></div>
-              <div className="text-xs text-slate-500">Edition: {s.version === "configurable" ? "not configured (reference only)" : s.version}</div>
+            <li key={s.code} className="rounded-md border border-border px-3 py-2">
+              <div className="text-sm font-medium">{s.code} <span className="font-normal text-muted-foreground">— {s.title}</span></div>
+              <div className="text-xs text-muted-foreground">{t("std.edition")}: {s.version === "configurable" ? t("std.notConfigured") : s.version}</div>
             </li>
           ))}
         </ul>
         <div>
-          <div className="label">Rules applied</div>
+          <div className="label">{t("std.rulesApplied")}</div>
           <ul className="space-y-1.5 text-xs">
             {rules.filter((r) => ruleIds.has(r.id)).map((r) => (
-              <li key={r.id}><span className="font-medium">{r.name}</span> <span className="text-slate-500">({r.standard.join(" / ")})</span> — {r.implementation}</li>
+              <li key={r.id}><span className="font-medium">{r.name}</span> <span className="text-muted-foreground">({r.standard.join(" / ")})</span> — {r.implementation}</li>
             ))}
           </ul>
-          <p className="mt-3 text-[11px] text-slate-500">Standards are referenced, not reproduced. VeatsAI does not certify compliance.</p>
+          <p className="mt-3 text-[11px] text-muted-foreground">{t("std.disclaimer")}</p>
         </div>
       </div>
     </Card>
@@ -609,30 +673,32 @@ export function StandardsCard({ project, standards, rules }: { project: Project;
 // ------------------------------------------------------------------ notes & history
 
 export function NotesCard({ project, run, busy }: { project: Project; run: RunAction; busy: string | null }) {
+  const t = useT();
+  const lang = useLang();
   const [text, setText] = useState("");
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <Card title="Engineering notes">
+      <Card title={t("notes.title")}>
         <div className="space-y-3 p-5">
-          {project.notes.length === 0 && <p className="text-sm text-slate-500">No notes yet.</p>}
+          {project.notes.length === 0 && <p className="text-sm text-muted-foreground">{t("notes.empty")}</p>}
           {project.notes.map((n) => (
-            <div key={n.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <div key={n.id} className="rounded-md bg-muted px-3 py-2 text-sm">
               <div>{n.text}</div>
-              <div className="mt-1 text-[11px] text-slate-500">{n.author} · {fmtDate(n.created_at)}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{n.author} · {fmtDate(n.created_at, lang)}</div>
             </div>
           ))}
           <div className="flex gap-2">
-            <input className="input" placeholder="Add engineering note…" value={text} onChange={(e) => setText(e.target.value)} />
-            <button className="btn-ghost" disabled={!text.trim() || !!busy} onClick={async () => { if (await run({ type: "add_note", text })) setText(""); }}>Add</button>
+            <input className="input" placeholder={t("notes.placeholder")} value={text} onChange={(e) => setText(e.target.value)} />
+            <button className="btn-ghost" disabled={!text.trim() || !!busy} onClick={async () => { if (await run({ type: "add_note", text })) setText(""); }}>{t("common.add")}</button>
           </div>
         </div>
       </Card>
-      <Card title="Review history">
-        <ul className="max-h-72 divide-y divide-slate-100 overflow-auto">
+      <Card title={t("history.title")}>
+        <ul className="max-h-72 divide-y divide-border overflow-auto">
           {[...project.history].reverse().map((h) => (
             <li key={h.id} className="px-5 py-2 text-xs">
-              <span className="font-semibold">{h.action.replace(/_/g, " ")}</span> · {h.author} · <span className="text-slate-500">{fmtDate(h.created_at)}</span>
-              {h.detail && <div className="truncate text-slate-500">{h.detail}</div>}
+              <span className="font-medium">{h.action.replace(/_/g, " ")}</span> · {h.author} · <span className="text-muted-foreground">{fmtDate(h.created_at, lang)}</span>
+              {h.detail && <div className="truncate text-muted-foreground">{h.detail}</div>}
             </li>
           ))}
         </ul>

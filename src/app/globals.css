@@ -1,58 +1,119 @@
 @import "tailwindcss";
 
+/* Dark mode is class-based (html.dark), set before paint by the inline script in layout.tsx. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens — neutral monochrome (shadcn-style), light + dark. */
 :root {
-  --background: #f6f7f9;
-  --foreground: #0f172a;
+  --background: oklch(100% 0 0);
+  --foreground: oklch(14.5% 0 0);
+  --card: oklch(100% 0 0);
+  --muted: oklch(97% 0 0);
+  --muted-foreground: oklch(55.6% 0 0);
+  --border: oklch(92.2% 0 0);
+  --primary: oklch(20.5% 0 0);
+  --primary-foreground: oklch(98.5% 0 0);
+  --ring: oklch(70.8% 0 0);
+  color-scheme: light;
+}
+.dark {
+  --background: oklch(14.5% 0 0);
+  --foreground: oklch(98.5% 0 0);
+  --card: oklch(17.5% 0 0);
+  --muted: oklch(22% 0 0);
+  --muted-foreground: oklch(70.8% 0 0);
+  --border: oklch(100% 0 0 / 0.1);
+  --primary: oklch(92.2% 0 0);
+  --primary-foreground: oklch(20.5% 0 0);
+  --ring: oklch(55.6% 0 0);
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-mono);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+* {
+  border-color: var(--border);
+}
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 .card {
-  @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  @apply rounded-lg border border-border bg-card;
 }
 .card-h {
-  @apply flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3;
+  @apply flex items-center justify-between gap-3 border-b border-border px-5 py-3;
 }
 .card-t {
-  @apply text-sm font-semibold tracking-tight text-slate-900;
+  @apply text-sm font-medium tracking-tight text-foreground;
+}
+.eyebrow {
+  @apply text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground;
 }
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-800;
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 bg-primary text-primary-foreground hover:opacity-90;
 }
 .btn-accent {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700;
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 bg-primary text-primary-foreground hover:opacity-90;
 }
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 border border-border bg-transparent text-foreground hover:bg-muted;
 }
 .input {
-  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200;
+  @apply w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20;
+}
+select.input option {
+  background: var(--card);
+  color: var(--foreground);
 }
 .label {
-  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500;
+  @apply mb-1 block text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground;
 }
 .tbl {
   @apply w-full text-left text-sm;
 }
 .tbl th {
-  @apply border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
+  @apply border-b border-border bg-muted/60 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground;
 }
 .tbl td {
-  @apply border-b border-slate-100 px-3 py-2 align-top;
+  @apply border-b border-border px-3 py-2 align-top;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-up {
+    animation: none;
+  }
 }
 
 .print-footer {
