@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { ApiError, GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import { z } from "zod";
 import { findMissing } from "../engineering/inputs";
 import type { RequestAnalysis } from "../types";
@@ -15,27 +16,28 @@ import { AiExtractionSchema, validateExtraction, type AiExtraction } from "./sch
  * It never performs engineering math; that is done deterministically by /lib/engineering.
  *
  * Providers (server-side keys only, never exposed to the browser):
+ *   - Groq            — GROQ_API_KEY          (model: GROQ_MODEL, default openai/gpt-oss-120b)
  *   - Google Gemini   — GEMINI_API_KEY        (model: GEMINI_MODEL, default gemini-3.8-flash)
  *   - Anthropic Claude — AI_API_KEY / ANTHROPIC_API_KEY (model: AI_MODEL, default claude-opus-5-5)
- * AI_PROVIDER=gemini|anthropic forces one; otherwise the first configured key wins (Gemini first).
+ * AI_PROVIDER=groq|gemini|anthropic forces one; otherwise the first configured key wins in that order.
  */
 
-type Provider = "gemini" | "anthropic";
+type Provider = "groq" | "gemini" | "anthropic";
 
+const GROQ_KEY = () => process.env.GROQ_API_KEY;
 const GEMINI_KEY = () => process.env.GEMINI_API_KEY;
 const ANTHROPIC_KEY = () => process.env.AI_API_KEY || process.env.ANTHROPIC_API_KEY;
+const KEYS: Record<Provider, () => string | undefined> = { groq: GROQ_KEY, gemini: GEMINI_KEY, anthropic: ANTHROPIC_KEY };
 
 export function aiProvider(): Provider | null {
   const forced = process.env.AI_PROVIDER as Provider | undefined;
-  if (forced === "gemini" && GEMINI_KEY()) return "gemini";
-  if (forced === "anthropic" && ANTHROPIC_KEY()) return "anthropic";
-  if (GEMINI_KEY()) return "gemini";
-  if (ANTHROPIC_KEY()) return "anthropic";
-  return null;
+  if (forced && KEYS[forced]?.()) return forced;
+  return (["groq", "gemini", "anthropic"] as const).find((p) => KEYS[p]()) ?? null;
 }
 
 export function aiModel(): string | null {
   const p = aiProvider();
+  if (p === "groq") return process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   if (p === "gemini") return process.env.GEMINI_MODEL || "gemini-3.8-flash";
   if (p === "anthropic") return process.env.AI_MODEL || "claude-opus-5-5";
   return null;
@@ -89,7 +91,7 @@ function toAnalysis(x: AiExtraction, source: RequestAnalysis["source"], model?: 
 
 // ------------------------------------------------------------------ Gemini
 
-const GEMINI_SCHEMA = (() => {
+const JSON_SCHEMA = (() => {
   const s = z.toJSONSchema(AiExtractionSchema) as Record<string, unknown>;
   delete s.$schema;
   return s;
@@ -105,7 +107,7 @@ async function callGemini(request: string, previousError?: string): Promise<unkn
       config: {
         systemInstruction: SYSTEM_PROMPT,
         responseMimeType: "application/json",
-        responseJsonSchema: GEMINI_SCHEMA,
+        responseJsonSchema: JSON_SCHEMA,
         temperature: 0,
       },
     });
@@ -118,6 +120,38 @@ async function callGemini(request: string, previousError?: string): Promise<unkn
     throw new AIAnalysisError(FAILED, "Could not reach the AI service.");
   }
   const text = res.text;
+  if (!text) throw new RetryableError("Empty response from model.");
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new RetryableError("Model returned invalid JSON.");
+  }
+}
+
+// -------------------------------------------------------------------- Groq
+
+async function callGroq(request: string, previousError?: string): Promise<unknown> {
+  const client = new Groq({ apiKey: GROQ_KEY(), maxRetries: 2, timeout: 60_000 });
+  let res;
+  try {
+    res = await client.chat.completions.create({
+      model: aiModel()!,
+      temperature: 0,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userContent(request, previousError) },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "request_analysis", schema: JSON_SCHEMA } },
+    });
+  } catch (err) {
+    if (err instanceof Groq.AuthenticationError || err instanceof Groq.PermissionDeniedError) throw new AIAnalysisError(FAILED, "Groq API key rejected — check GROQ_API_KEY.");
+    if (err instanceof Groq.RateLimitError) throw new AIAnalysisError(FAILED, "AI rate limit reached — wait a moment and retry.");
+    if (err instanceof Groq.BadRequestError) throw new RetryableError(`Model output rejected: ${err.message.slice(0, 200)}`);
+    if (err instanceof Groq.APIConnectionError) throw new AIAnalysisError(FAILED, "Could not reach the AI service.");
+    if (err instanceof Groq.APIError) throw new AIAnalysisError(FAILED, `AI service error (${err.status}).`);
+    throw new AIAnalysisError(FAILED, err instanceof Error ? err.message : String(err));
+  }
+  const text = res.choices[0]?.message?.content;
   if (!text) throw new RetryableError("Empty response from model.");
   try {
     return JSON.parse(text);
@@ -168,7 +202,7 @@ export async function analyzeRequest(request: string, opts: { mode?: "auto" | "r
     return toAnalysis(parsed.data, "rule_based_fallback");
   }
 
-  const call = provider === "gemini" ? callGemini : callAnthropic;
+  const call = provider === "groq" ? callGroq : provider === "gemini" ? callGemini : callAnthropic;
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

@@ -18,7 +18,7 @@ export default function SettingsPage() {
         <Card title="Integrations">
           <ul className="divide-y divide-slate-100 text-sm">
             <li className="flex items-center justify-between px-5 py-3">
-              <div><div className="font-medium">AI request understanding</div><div className="text-xs text-slate-500">Server-side only · {aiProvider() === "gemini" ? "Google Gemini (GEMINI_API_KEY)" : aiProvider() === "anthropic" ? "Anthropic Claude (AI_API_KEY)" : "GEMINI_API_KEY or AI_API_KEY"}{aiModel() ? ` · model ${aiModel()}` : ""}</div></div>
+              <div><div className="font-medium">AI request understanding</div><div className="text-xs text-slate-500">Server-side only · {aiProvider() === "groq" ? "Groq (GROQ_API_KEY)" : aiProvider() === "gemini" ? "Google Gemini (GEMINI_API_KEY)" : aiProvider() === "anthropic" ? "Anthropic Claude (AI_API_KEY)" : "GROQ_API_KEY, GEMINI_API_KEY or AI_API_KEY"}{aiModel() ? ` · model ${aiModel()}` : ""}</div></div>
               {aiConfigured() ? <Badge t="emerald">Connected</Badge> : <Badge t="amber">Not configured — rule-based parser</Badge>}
             </li>
             <li className="flex items-center justify-between px-5 py-3">

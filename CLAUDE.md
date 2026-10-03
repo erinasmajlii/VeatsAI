@@ -13,7 +13,7 @@ Hackathon MVP — keep the main demo flow working above everything else.
 - `BASE_URL=http://localhost:3000 npm run test:e2e` — end-to-end demo check (needs `npm run dev` running)
 
 ## Architecture (see README.md)
-- `src/lib/ai` — LLM request understanding only (Gemini / Claude, Zod-validated) + rule-based fallback
+- `src/lib/ai` — LLM request understanding only (Groq / Gemini / Claude, Zod-validated) + rule-based fallback
 - `src/lib/engineering` — deterministic calculations. **Never use the LLM for math.**
 - `src/lib/standards` — standards + rule objects; every result references a rule id + standard
 - `src/lib/bom`, `src/lib/inventory`, `src/lib/cost`, `src/lib/cad` — component selection, stock, cost, SVG/DXF

@@ -41,10 +41,11 @@ BASE_URL=http://localhost:3000 npm run test:e2e
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | no | Google Gemini key, used server-side only. Takes priority when set. |
+| `GROQ_API_KEY` | no | Groq key (free tier), used server-side only. First choice when set. `GROQ_MODEL` defaults to `openai/gpt-oss-120b`. |
+| `GEMINI_API_KEY` | no | Google Gemini key, used server-side only. |
 | `GEMINI_MODEL` | no | Defaults to `gemini-3.8-flash`. |
 | `AI_API_KEY` | no | Claude API key, used server-side only (`ANTHROPIC_API_KEY` also works). `AI_MODEL` defaults to `claude-opus-5-5`. |
-| `AI_PROVIDER` | no | `gemini` or `anthropic`, to force one when both keys are set. With no key, the rule-based parser is used. |
+| `AI_PROVIDER` | no | `groq`, `gemini` or `anthropic`, to force one when several keys are set. With no key, the rule-based parser is used. |
 | `SUPABASE_URL` | no | Supabase project URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Server-side only. When both Supabase variables are set, Supabase replaces the local JSON database. |
 | `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_EMAIL`, `DEFAULT_ENGINEER` | no | Text shown on quotes. |
@@ -100,7 +101,7 @@ src/app/         dashboard, projects, project workspace, quote, inventory, quote
 
 ### What is real and what is mock
 
-- **Real:** structured AI extraction with Gemini or Claude (when a key is set); Zod validation with retry; deterministic engineering math; the standards rule engine and traceability; catalog-based component selection; inventory checks; the cost engine; SVG and DXF generation; the review/approval workflow; Supabase persistence; the printable quote.
+- **Real:** structured AI extraction with Groq, Gemini or Claude (when a key is set); Zod validation with retry; deterministic engineering math; the standards rule engine and traceability; catalog-based component selection; inventory checks; the cost engine; SVG and DXF generation; the review/approval workflow; Supabase persistence; the printable quote.
 - **Reference data / simplified:** cable ampacity and correction factors are indicative values; labor and engineering hours are estimates; the IP mapping is a configurable company rule.
 - **Mock / not implemented:** the AutoCAD/MCP integration (stub adapter only), NEC rules (selectable as "coming soon" only), authentication, short-circuit and selectivity calculations, and IEC 61439 design verification.
 
